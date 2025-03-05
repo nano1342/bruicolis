@@ -9,6 +9,8 @@ export class PgArtistRepository implements ArtistRepository {
 
     async getAll() {
         let artists = await this.prisma.artist.findMany();
+        console.log("ArtistRepository.getAll() called");
+        
         return artists.map((artist) => {
             return {
                 id: artist.id,
