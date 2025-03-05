@@ -7,6 +7,8 @@ const router = Router();
 
 router.get("/", artistController.getArtists.bind(artistController));
 
+router.post("/", artistController.addArtist.bind(artistController));
+
 router.get("/:id", artistController.getArtist.bind(artistController));
 // router.get("/:id", async (req: Request, res: Response) => {
 //   const artist_id :number = +req.params.id;
