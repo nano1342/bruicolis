@@ -1,8 +1,8 @@
 import express, { Express, Request, Response , Application } from 'express';
 // "dev": "npm run build && npm run start",
 
-import artistsRoutes from "./routes/artists";
-import musicRoutes from "./routes/songs";
+import artistsRoutes from "./src/Infrastructures/routes/artists";
+import musicRoutes from "./src/Infrastructures/routes/songs";
 
 const app: Application = express();
 const port = process.env.PORT || 8000;
