@@ -7,9 +7,8 @@ export class PgArtistRepository implements ArtistRepository {
         
     }
 
-    async getAll() {
+    async selectAll() {
         let artists = await this.prisma.artist.findMany();
-        console.log("ArtistRepository.getAll() called");
         
         return artists.map((artist) => {
             return {
@@ -17,5 +16,21 @@ export class PgArtistRepository implements ArtistRepository {
                 name: artist.name
             }
         })
+    }
+
+    async selectOneById(artistId: number) {
+        let artist = await this.prisma.artist.findUnique({where: {
+            id: artistId,
+          },
+        });
+        
+        if (artist == null) {
+            return null;
+        };
+
+        return {
+            id: artist.id,
+            name: artist.name
+        }
     }
 }

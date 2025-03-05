@@ -8,10 +8,17 @@ export class GetArtistsService {
     }
 
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
-    execute() {
+    getAll() {
         //vérifications préalables avant requête
 
-        return this.artistRepository.getAll();
+        return this.artistRepository.selectAll();
+    }
+
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getOneById(artistId: number) {
+        //vérifications préalables avant requête
+
+        return this.artistRepository.selectOneById(artistId);
     }
     
 }
