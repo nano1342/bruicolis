@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Artist, PrismaClient } from "@prisma/client";
 import { ArtistRepository } from "../../Domains/repositories/artistRepository";
 
 export class PgArtistRepository implements ArtistRepository {
@@ -33,4 +33,17 @@ export class PgArtistRepository implements ArtistRepository {
             name: artist.name
         }
     }
+
+    async insertArtist(artistToInsert: Artist) {
+        console.log("post envoi", artistToInsert);
+        let newArtist: Artist = await this.prisma.artist.create({
+            data: {
+              name: artistToInsert.name
+            }
+          });
+
+        return newArtist;
+    }
+
+    
 }

@@ -8,4 +8,6 @@ export interface ArtistRepository {
     //a modif dans pgArtistRepo aussi
     
     selectOneById(artistId: number) :Promise<Artist | null>
+    
+    insertArtist(artistToInsert: Artist) :Promise<Artist | null>
 }

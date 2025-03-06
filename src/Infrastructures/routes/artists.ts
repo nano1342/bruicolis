@@ -36,15 +36,15 @@ router.get("/:id", artistController.getArtist.bind(artistController));
 /**
  * Route to add a song made by one artist.
  */
-router.post("/", async (req: Request, res: Response) => {
-  let newArtist: Artist = await prisma.artist.create({
-    data: {
-      name: req.body.name
-    }
-  });
+// router.post("/", async (req: Request, res: Response) => {
+//   let newArtist: Artist = await prisma.artist.create({
+//     data: {
+//       name: req.body.name
+//     }
+//   });
 
-  res.send("New artist inserted.");
-});
+//   res.send("New artist inserted.");
+// });
 
 
 export default router;
