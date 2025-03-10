@@ -18,6 +18,22 @@ export class PgArtistRepository implements ArtistRepository {
         })
     }
 
+    async selectPage(skip: number, take: number) {
+        const options = {
+            skip: skip,
+            take: take
+        }
+
+        let artists = await this.prisma.artist.findMany(options);
+
+        return artists.map((artist) => {
+            return {
+                id: artist.id,
+                name: artist.name
+            }
+        })
+    }
+
     async selectOneById(artistId: number) {
         let artist = await this.prisma.artist.findUnique({where: {
             id: artistId,
@@ -35,7 +51,6 @@ export class PgArtistRepository implements ArtistRepository {
     }
 
     async insertArtist(artistToInsert: Artist) {
-        console.log("post envoi", artistToInsert);
         let newArtist: Artist = await this.prisma.artist.create({
             data: {
               name: artistToInsert.name

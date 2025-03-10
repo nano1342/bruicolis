@@ -18,18 +18,24 @@ export default class ArtistController {
     }
 
     async getArtists(req: Request, res: Response) {
-        const artists = await this.getArtistsService.getAll();
-        res.send(artists);
+        let result;
+        console.log(req.body);
+        
+        if (req.body.page != null && req.body.limit != null) {
+            result = await this.getArtistsService.getPage(req.body.page, req.body.limit);
+        } else {
+            result = await this.getArtistsService.getAll();
+        }
+
+        if (result == Errors.ErrorType.INCORRECT_PARAMETER) {
+            res.status(400).send(Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER));
+            return;
+        }
+
+        res.send(result);
     }
 
     async addArtist(req: Request, res: Response) {
-        console.log("Adding artist : ", req.params['name']);
-        
-        // if (req.params['name'] == null) {
-        //     const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
-        //     res.status(422).send(errorBody);
-        //     return;
-        // }
 
         const { error, value } = this.reqBodyFormatArtistPost.validate(req.body);
         if (error) {
