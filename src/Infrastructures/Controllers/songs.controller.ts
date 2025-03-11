@@ -1,28 +1,29 @@
 
 import { Request, Response } from "express";
-import { GetArtistsService } from "../../Services/getArtists.services";
-import { PrismaClient } from "@prisma/client";
+import { GetSongsService } from "../../Services/getSongs.services";
 import * as Errors from "../../Utils/Errors";
 import Joi from "joi";
 
-export default class ArtistController {
+export default class SongController {
 
-    private reqBodyFormatArtistPost = Joi.object({
+    private reqBodyFormatSongPost = Joi.object({
         name: Joi.string().required(),
+        release_date: Joi.string().required(),
+        artist_id: Joi.number().required(),
     });
 
-    constructor(private readonly getArtistsService:GetArtistsService) {
+    constructor(private readonly getSongsService:GetSongsService) {
 
     }
 
-    async getArtists(req: Request, res: Response) {
+    async getSongs(req: Request, res: Response) {
         let result;
         console.log(req.body);
         
         if (req.body.page != null && req.body.limit != null) {
-            result = await this.getArtistsService.getPage(req.body.page, req.body.limit);
+            result = await this.getSongsService.getPage(req.body.page, req.body.limit);
         } else {
-            result = await this.getArtistsService.getAll();
+            result = await this.getSongsService.getAll();
         }
 
         if (result == Errors.ErrorType.INCORRECT_PARAMETER) {
@@ -33,9 +34,9 @@ export default class ArtistController {
         res.send(result);
     }
 
-    async addArtist(req: Request, res: Response) {
+    async addSong(req: Request, res: Response) {
 
-        const { error, value } = this.reqBodyFormatArtistPost.validate(req.body);
+        const { error, value } = this.reqBodyFormatSongPost.validate(req.body);
         if (error) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.WRONG_BODY);
             res.status(400).send(errorBody);
@@ -43,18 +44,25 @@ export default class ArtistController {
         }
         
         
-        const artistToInsert = {
+        const songToInsert = {
             id: -1,
             name: req.body['name'],
+            release_date: req.body['release_date']
         };
         
         console.log("pré envoi", req.body);
 
-        const artist = await this.getArtistsService.addArtist(artistToInsert);
-        res.send(artist);
+        const insertedSong = await this.getSongsService.addSong(songToInsert, req.body['artist_id']);
+        
+        if (insertedSong == Errors.ErrorType.FOREIGN_KEY_NOT_FOUND) {
+            res.status(400).send(Errors.getErrorBody(Errors.ErrorType.FOREIGN_KEY_NOT_FOUND, "The specified artist_id is unknown."))
+        }
+        else {
+            res.send(insertedSong);
+        }
     }
 
-    async getArtist(req: Request, res: Response) {
+    async getSong(req: Request, res: Response) {
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -70,12 +78,12 @@ export default class ArtistController {
         }
         
         
-        const artist = await this.getArtistsService.getOneById(id);
-        if (artist == null) {
+        const song = await this.getSongsService.getOneById(id);
+        if (song == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
             res.status(404).send(errorBody);
             return;
         }
-        res.send(artist);
+        res.send(song);
     }
 }
