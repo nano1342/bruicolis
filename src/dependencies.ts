@@ -8,6 +8,10 @@ import SongController from "./Infrastructures/Controllers/songs.controller";
 import { PgSongRepository } from "./Infrastructures/Repositories/pgSongRepository";
 import { GetSongsService } from "./Services/getSongs.services";
 
+import AlbumController from "./Infrastructures/Controllers/albums.controller";
+import { PgAlbumRepository } from "./Infrastructures/Repositories/pgAlbumRepository";
+import { AlbumsService } from "./Services/albums.services";
+
 const prisma = new PrismaClient();
 
 // Artists
@@ -19,3 +23,8 @@ export const artistController = new ArtistController(getArtistsService);
 export const songRepository = new PgSongRepository(prisma);
 export const getSongsService = new GetSongsService(songRepository);
 export const songController = new SongController(getSongsService);
+
+// Albums
+export const albumRepository = new PgAlbumRepository(prisma);
+export const albumsService = new AlbumsService(albumRepository);
+export const albumController = new AlbumController(albumsService);
