@@ -3,9 +3,8 @@ import { Artist } from "../Models/Artist";
 export interface ArtistRepository {
     
     selectAll() :Promise<Artist[]>
-    //Post...
-    //Get unique...
-    //a modif dans pgArtistRepo aussi
+    
+    selectPage(skip: number, take: number) :Promise<Artist[]>
     
     selectOneById(artistId: number) :Promise<Artist | null>
     

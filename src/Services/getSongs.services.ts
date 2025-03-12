@@ -1,16 +1,16 @@
-import { Artist } from "../Domains/Models/Artist";
-import { ArtistRepository } from "../Domains/repositories/artistRepository";
+import { Song } from "../Domains/Models/Song";
+import { SongRepository } from "../Domains/repositories/songRepository";
 import * as Errors from "../Utils/Errors";
 
 //potentiellement renommer en service
-export class GetArtistsService {
+export class GetSongsService {
 
-    constructor(private readonly artistRepository:ArtistRepository) {
+    constructor(private readonly songRepository:SongRepository) {
         
     }
 
     getAll() {
-        return this.artistRepository.selectAll();
+        return this.songRepository.selectAll();
     }
 
     getPage(page: number, limit: number) {
@@ -18,24 +18,24 @@ export class GetArtistsService {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
                 return Errors.ErrorType.INCORRECT_PARAMETER;
             }
-            return this.artistRepository.selectPage((page-1)*limit, limit)
+            return this.songRepository.selectPage((page-1)*limit, limit)
         } catch (error) {
             return Errors.ErrorType.INCORRECT_PARAMETER;
         }
     }
 
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
-    getOneById(artistId: number) {
+    getOneById(songId: number) {
         //vérifications préalables avant requête
 
-        return this.artistRepository.selectOneById(artistId);
+        return this.songRepository.selectOneById(songId);
     }
 
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
-    addArtist(artistToInsert: Artist) {
+    addSong(songToInsert: Song, artistd: number) {
         //vérifications préalables avant requête
 
-        return this.artistRepository.insertArtist(artistToInsert);
+        return this.songRepository.insertSong(songToInsert, artistd);
     }
     
 }

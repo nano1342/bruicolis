@@ -21,6 +21,7 @@ enum ErrorType {
     MISSING_PARAMETER = "Missing parameter",
     INCORRECT_PARAMETER = "Incorrect parameter",
     NOT_FOUND = "Not found",
+    FOREIGN_KEY_NOT_FOUND = "Foreign key not found",
     DEFAULT = "Default"
 }
 
