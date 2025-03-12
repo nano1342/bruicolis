@@ -36,4 +36,25 @@ export class TagsService {
 
         return this.tagRepository.insertTag(tagToInsert);
     }
+
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getTagSongs(tagId: number) {
+        //vérifications préalables avant requête
+
+        return this.tagRepository.selectTagSongs(tagId);
+    }
+
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getTagArtists(tagId: number) {
+        //vérifications préalables avant requête
+
+        return this.tagRepository.selectTagArtists(tagId);
+    }
+
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getTagAlbums(tagId: number) {
+        //vérifications préalables avant requête
+
+        return this.tagRepository.selectTagAlbums(tagId);
+    }
 }

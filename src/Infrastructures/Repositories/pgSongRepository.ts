@@ -1,4 +1,4 @@
-import { Song, PrismaClient, SongArtistLink } from "@prisma/client";
+import { Song, PrismaClient, SongArtistLink, TagLink } from "@prisma/client";
 import { Song as SongModel } from "../../Domains/Models/Song";
 import { SongRepository } from "../../Domains/repositories/songRepository";
 import * as Errors from "../../Utils/Errors";
@@ -82,5 +82,30 @@ export class PgSongRepository implements SongRepository {
         }
 
         return newSongToReturn;
+    }
+
+    /**
+     * Adds a tag to the song.
+     * @param songId 
+     * @param tagId 
+     * @returns {boolean} True if successful, false otherwise.
+     */
+    async insertTag(songId: number, tagId: number) {
+        try {
+            
+            let newTagLink: TagLink = await this.prisma.tagLink.create({
+                data: {
+                    idTag: tagId,
+                    idSong: songId,
+                    idAlbum: undefined,
+                    idArtist: undefined,
+                }
+            });
+        } catch (error) {
+            
+            return false;
+        }
+
+        return true;
     }
 }

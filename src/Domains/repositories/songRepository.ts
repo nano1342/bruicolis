@@ -10,4 +10,6 @@ export interface SongRepository {
     selectOneById(songId: number) :Promise<Song | null>
     
     insertSong(songToInsertbis: Song, artistd: number) :Promise<Song | ErrorType | null>
+    
+    insertTag(songId: number, tagId: number) :Promise<boolean>
 }

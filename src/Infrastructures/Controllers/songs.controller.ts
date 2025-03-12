@@ -86,4 +86,52 @@ export default class SongController {
         }
         res.send(song);
     }
+
+    /**
+     * Adds a tag to the specified song.
+     * @param req 
+     * @param res 
+     * @returns 
+     */
+    async addTag(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        //parsing the parameter
+        const id = Number.parseInt(req.params['id']);
+        if (id == null || Number.isNaN(id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+
+        if (req.body['tag_id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_BODY_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        const tagId = Number.parseInt(req.body['tag_id']);
+        console.log(req.body['tag_id'], tagId);
+        
+        if (tagId == null || Number.isNaN(tagId)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+        
+        
+        const succeed = await this.getSongsService.addTag(id, tagId);
+        let respBody;
+        if (succeed == null) {
+            const respBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
+            res.status(404).send(respBody);
+            return;
+        }
+
+        res.send(respBody);
+    }
 }

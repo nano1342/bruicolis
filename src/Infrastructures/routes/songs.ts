@@ -9,4 +9,6 @@ router.post("/", songController.addSong.bind(songController));
 
 router.get("/:id", songController.getSong.bind(songController));
 
+router.post("/:id/add_tag", songController.addTag.bind(songController));
+
 export default router;

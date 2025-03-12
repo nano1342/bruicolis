@@ -24,18 +24,22 @@ export class GetSongsService {
         }
     }
 
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     getOneById(songId: number) {
         //vérifications préalables avant requête
 
         return this.songRepository.selectOneById(songId);
     }
 
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     addSong(songToInsert: Song, artistd: number) {
         //vérifications préalables avant requête
 
         return this.songRepository.insertSong(songToInsert, artistd);
+    }
+
+    addTag(songId: number, tagId: number) {
+        //vérifications préalables avant requête
+
+        return this.songRepository.insertTag(songId, tagId);
     }
     
 }
