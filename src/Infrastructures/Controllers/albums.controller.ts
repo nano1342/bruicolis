@@ -86,4 +86,29 @@ export default class AlbumController {
         }
         res.send(album);
     }
+
+    async getAlbumSongs(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        //parsing the parameter
+        const id = Number.parseInt(req.params['id']);
+        if (id == null || Number.isNaN(id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+        
+        const album = await this.getAlbumsService.getOneById(id);
+        if (album == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
+            res.status(404).send(errorBody);
+            return;
+        }
+        const songList = await this.getAlbumsService.getSongsAll(id);
+        res.send(songList);
+    }
 }

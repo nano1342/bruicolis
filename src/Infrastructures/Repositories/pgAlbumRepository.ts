@@ -55,6 +55,26 @@ export class PgAlbumRepository implements AlbumRepository {
         }
     }
 
+    async selectSongsAll(albumId: number) {
+        let songs = await this.prisma.song.findMany({
+            where: {
+              songAlbumLinks: {
+                some: {
+                  albumId: albumId,
+                },
+              },
+            },
+          });
+
+        return songs.map((song) => {
+            return {
+                id: song.id,
+                name: song.name,
+                release_date: song.releaseDate
+            }
+        })
+    }
+
     async insertAlbum(albumToInsert: AlbumModel, artistd: number) {
         let newAlbum: Album = await this.prisma.album.create({
             data: {

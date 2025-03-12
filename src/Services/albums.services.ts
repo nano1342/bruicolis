@@ -31,6 +31,13 @@ export class AlbumsService {
     }
 
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getSongsAll(albumId: number) {
+        //vérifications préalables avant requête
+
+        return this.albumRepository.selectSongsAll(albumId);
+    }
+
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     addAlbum(albumToInsert: Album, artistId: number) {
         //vérifications préalables avant requête
 

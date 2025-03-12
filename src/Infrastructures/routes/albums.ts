@@ -9,4 +9,6 @@ router.post("/", albumController.addAlbum.bind(albumController));
 
 router.get("/:id", albumController.getAlbum.bind(albumController));
 
+router.get("/:id/songs", albumController.getAlbumSongs.bind(albumController));
+
 export default router;
