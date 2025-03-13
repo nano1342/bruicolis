@@ -118,7 +118,9 @@ function importArtists() {
             try {
                 expectedArtists++;
                 asyncLocalStorage.run({ i }, () => {
-                    artistPerfTimings.set(name, perfNow());
+                    if (MEASURE_PERFORMANCE) {
+                        artistPerfTimings.set(name, perfNow());
+                    }
                     dependencies_1.getArtistsService
                         .addArtist({
                         id: 0, // ignored by service,
@@ -130,8 +132,10 @@ function importArtists() {
                             db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(musicbrainzId, artist.id);
                         }
                         acknowledgedArtists++;
-                        perfEnd(artistPerfTimings.get(name), "addArtist");
-                        artistPerfTimings.delete(name);
+                        if (MEASURE_PERFORMANCE) {
+                            perfEnd(artistPerfTimings.get(name), "addArtist");
+                            artistPerfTimings.delete(name);
+                        }
                     });
                 });
             }
@@ -309,7 +313,10 @@ function importSongs() {
             try {
                 expectedSongs++;
                 asyncLocalStorage.run({ i }, () => {
-                    songPerfTimings.set(name, perfNow());
+                    if (MEASURE_PERFORMANCE) {
+                        songPerfTimings.set(name, perfNow());
+                        console.log("adding song", name, "with artists", dbArtistIds);
+                    }
                     dependencies_1.getSongsService
                         .addSongWithMultipleArtists({
                         id: 0, // ignored by service,
@@ -318,8 +325,10 @@ function importSongs() {
                     }, dbArtistIds)
                         .then(() => {
                         acknowledgedSongs++;
-                        perfEnd(songPerfTimings.get(name), "addSong");
-                        songPerfTimings.delete(name);
+                        if (MEASURE_PERFORMANCE) {
+                            perfEnd(songPerfTimings.get(name), "addSong");
+                            songPerfTimings.delete(name);
+                        }
                     });
                 });
             }
@@ -526,7 +535,9 @@ function importAlbums() {
             try {
                 expectedAlbums++;
                 asyncLocalStorage.run({ i }, () => {
-                    albumPerfTimings.set(name, perfNow());
+                    if (MEASURE_PERFORMANCE) {
+                        albumPerfTimings.set(name, perfNow());
+                    }
                     dependencies_1.albumsService
                         .addAlbumWithMultipleArtists({
                         id: 0, // ignored by service,
@@ -536,8 +547,10 @@ function importAlbums() {
                         .then(() => {
                         acknowledgedAlbums++;
                         const perf = albumPerfTimings.get(name);
-                        perfEnd(albumPerfTimings.get(name), "addAlbum");
-                        albumPerfTimings.delete(name);
+                        if (MEASURE_PERFORMANCE) {
+                            perfEnd(albumPerfTimings.get(name), "addAlbum");
+                            albumPerfTimings.delete(name);
+                        }
                     });
                 });
             }

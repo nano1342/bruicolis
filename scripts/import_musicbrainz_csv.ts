@@ -29,21 +29,23 @@ let asyncLocalStorage: AsyncLocalStorage<{
     i: number;
 }> = new AsyncLocalStorage();
 
-interface PerfFrame { start: number; end: number }
+interface PerfFrame {
+    start: number;
+    end: number;
+}
 function perfNow(): PerfFrame {
     return { start: performance.now(), end: 0 };
 }
 function perfEnd(t: PerfFrame | undefined, name: string) {
     if (t === undefined) {
-        console.error("perfEnd: t is undefined", "i="+asyncLocalStorage.getStore()?.i);
+        console.error(
+            "perfEnd: t is undefined",
+            "i=" + asyncLocalStorage.getStore()?.i
+        );
         return;
     }
     t.end = performance.now();
-    console.log(
-        name,
-        "i="+asyncLocalStorage.getStore()?.i,
-        t.end - t.start
-    );
+    console.log(name, "i=" + asyncLocalStorage.getStore()?.i, t.end - t.start);
 }
 
 const fs = require("fs");
@@ -162,7 +164,9 @@ function importArtists() {
             try {
                 expectedArtists++;
                 asyncLocalStorage.run({ i }, () => {
-                    artistPerfTimings.set(name, perfNow());
+                    if (MEASURE_PERFORMANCE) {
+                        artistPerfTimings.set(name, perfNow());
+                    }
                     getArtistsService
                         .addArtist({
                             id: 0, // ignored by service,
@@ -176,8 +180,13 @@ function importArtists() {
                                 ).run(musicbrainzId, artist.id);
                             }
                             acknowledgedArtists++;
-                            perfEnd(artistPerfTimings.get(name), "addArtist");
-                            artistPerfTimings.delete(name);
+                            if (MEASURE_PERFORMANCE) {
+                                perfEnd(
+                                    artistPerfTimings.get(name),
+                                    "addArtist"
+                                );
+                                artistPerfTimings.delete(name);
+                            }
                         });
                 });
             } catch (e) {
@@ -386,7 +395,15 @@ function importSongs() {
             try {
                 expectedSongs++;
                 asyncLocalStorage.run({ i }, () => {
-                    songPerfTimings.set(name, perfNow());
+                    if (MEASURE_PERFORMANCE) {
+                        songPerfTimings.set(name, perfNow());
+                        console.log(
+                            "adding song",
+                            name,
+                            "with artists",
+                            dbArtistIds
+                        );
+                    }
                     getSongsService
                         .addSongWithMultipleArtists(
                             {
@@ -398,8 +415,10 @@ function importSongs() {
                         )
                         .then(() => {
                             acknowledgedSongs++;
-                            perfEnd(songPerfTimings.get(name), "addSong");
-                            songPerfTimings.delete(name);
+                            if (MEASURE_PERFORMANCE) {
+                                perfEnd(songPerfTimings.get(name), "addSong");
+                                songPerfTimings.delete(name);
+                            }
                         });
                 });
             } catch (e) {
@@ -625,7 +644,9 @@ function importAlbums() {
             try {
                 expectedAlbums++;
                 asyncLocalStorage.run({ i }, () => {
-                    albumPerfTimings.set(name, perfNow());
+                    if (MEASURE_PERFORMANCE) {
+                        albumPerfTimings.set(name, perfNow());
+                    }
                     albumsService
                         .addAlbumWithMultipleArtists(
                             {
@@ -638,8 +659,10 @@ function importAlbums() {
                         .then(() => {
                             acknowledgedAlbums++;
                             const perf = albumPerfTimings.get(name);
-                            perfEnd(albumPerfTimings.get(name), "addAlbum");
-                            albumPerfTimings.delete(name);
+                            if (MEASURE_PERFORMANCE) {
+                                perfEnd(albumPerfTimings.get(name), "addAlbum");
+                                albumPerfTimings.delete(name);
+                            }
                         });
                 });
             } catch (e) {

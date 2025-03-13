@@ -8,7 +8,7 @@
     "build": "npx tsc",
     "dev": "nodemon",
     "start": "node dist/index.js",
-    "import:musicbrainz": "npx tsc && node dist/scripts/import_musicbrainz_csv.js",
+    "import:musicbrainz": "npx tsc && node --inspect dist/scripts/import_musicbrainz_csv.js",
     "prisma:dev:reset": "npx prisma db push --force-reset && npx prisma db push",
     "import:musicbrainz:with_reset": "npm run prisma:dev:reset && npm run import:musicbrainz"
   },
