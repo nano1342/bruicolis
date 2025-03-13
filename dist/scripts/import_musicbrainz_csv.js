@@ -54,8 +54,11 @@ function start() {
     db.exec("CREATE TABLE recording_to_medium (recording INTEGER, medium INTEGER)");
     db.exec("CREATE TABLE medium_to_release (medium INTEGER, release INTEGER)");
     db.exec("CREATE TABLE release_to_release_date (release INTEGER, year INTEGER, month INTEGER, day INTEGER)");
+    db.exec("CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
     importArtists();
 }
+let expectedArtists = 0;
+let acknowledgedArtists = 0;
 function importArtists() {
     console.log("=== importing artists...");
     let i = 0;
@@ -75,20 +78,34 @@ function importArtists() {
                 name = name.substring(0, 255);
                 console.warn("truncated name", r[2], name);
             }
+            const musicbrainzId = parseInt(r[0]);
             try {
+                expectedArtists++;
                 dependencies_1.getArtistsService.addArtist({
                     id: 0, // ignored by service,
                     name,
-                    musicbrainzId: parseInt(r[0]),
+                    musicbrainzId,
+                }).then((artist) => {
+                    if (artist !== null) {
+                        db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(musicbrainzId, artist.id);
+                    }
+                    acknowledgedArtists++;
                 });
             }
             catch (e) {
+                expectedArtists--;
                 console.error("failed to import artist", r, e);
             }
         },
         onendorclose: () => {
-            console.log("artists imported.");
-            buildArtistCreditMappings();
+            const interval = setInterval(() => {
+                console.log(`acknowledged artists: ${acknowledgedArtists}/${expectedArtists}`);
+                if (acknowledgedArtists === expectedArtists) {
+                    clearInterval(interval);
+                    console.log("artists imports prepared.");
+                    buildArtistCreditMappings();
+                }
+            }, 1000);
         },
     });
 }
@@ -206,7 +223,8 @@ function buildReleaseToReleaseCountryMappings() {
 //     array.push(value);
 //     map.set(key, array);
 // }
-let songPromises = [];
+let expectedSongs = 0;
+let acknowledgedSongs = 0;
 function importSongs() {
     console.log("=== preparing song imports...");
     let i = 0;
@@ -235,52 +253,105 @@ function importSongs() {
                 // TODO uncomment this line
                 return;
             }
-            songPromises.push(new Promise((resolve, reject) => {
-                const f = async () => {
-                    // map musicbrainz id to db id
-                    let dbArtistIds = [];
-                    for (const id of artistIds) {
-                        const dbArtistId = await dependencies_1.getArtistsService.findArtistIdByMusicBrainzId(id);
-                        if (dbArtistId) {
-                            dbArtistIds.push(dbArtistId.id);
-                        }
-                    }
-                    if (dbArtistIds.length === 0) {
-                        // console.warn(
-                        //     `Cannot import song "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
-                        // );
-                        // TODO uncomment this line
-                        return;
-                    }
-                    const recordingId = parseInt(r[0]);
-                    const releaseDate = getRecordingFirstReleaseDate(recordingId);
-                    const date = new Date();
-                    if (releaseDate !== null) {
-                        date.setUTCFullYear(releaseDate?.year);
-                        date.setUTCMonth(releaseDate.month);
-                        date.setUTCDate(releaseDate.day);
-                    }
-                    //  TODO FIXME: https://musicbrainz.org/doc/Medium album
-                    try {
-                        await dependencies_1.getSongsService.addSongWithMultipleArtists({
-                            id: 0, // ignored by service,
-                            name,
-                            release_date: date,
-                        }, dbArtistIds);
-                    }
-                    catch (e) {
-                        console.error("failed to import song", r, e);
-                    }
-                };
-                f().then(resolve).catch(reject);
-            }));
+            // map musicbrainz id to db id
+            let dbArtistIds = [];
+            for (const id of artistIds) {
+                const dbArtistId = findArtistIdByMusicBrainzId(id);
+                if (dbArtistId !== undefined) {
+                    dbArtistIds.push(dbArtistId.id);
+                }
+            }
+            if (dbArtistIds.length === 0) {
+                // console.warn(
+                //     `Cannot import song "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
+                // );
+                // TODO uncomment this line
+                return;
+            }
+            const recordingId = parseInt(r[0]);
+            const releaseDate = getRecordingFirstReleaseDate(recordingId);
+            const date = new Date();
+            if (releaseDate !== null) {
+                date.setUTCFullYear(releaseDate?.year);
+                date.setUTCMonth(releaseDate.month);
+                date.setUTCDate(releaseDate.day);
+            }
+            //  TODO FIXME: https://musicbrainz.org/doc/Medium album
+            try {
+                expectedSongs++;
+                dependencies_1.getSongsService.addSongWithMultipleArtists({
+                    id: 0, // ignored by service,
+                    name,
+                    release_date: date,
+                }, dbArtistIds).then(() => {
+                    acknowledgedSongs++;
+                });
+            }
+            catch (e) {
+                console.error("failed to import song", r, e);
+            }
         },
         onendorclose: () => {
-            console.log("songs imports prepared.");
+            const interval = setInterval(() => {
+                console.log(`acknowledged songs: ${acknowledgedSongs}/${expectedSongs}`);
+                if (acknowledgedSongs === expectedSongs) {
+                    clearInterval(interval);
+                    console.log("songs imported.");
+                    importAlbums();
+                }
+            }, 1000);
+            console.log("songs imported.");
             importAlbums();
         },
     });
 }
+// function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
+//     const medium = recordingToMedium.get(recordingId);
+//     if (medium === undefined || medium.length === 0) {
+//         return null;
+//     }
+//     let releases: number[] = [];
+//     for (const m of medium) {
+//         const mediumReleases = mediumToRelease.get(m);
+//         if (mediumReleases !== undefined) {
+//             releases.concat(mediumReleases);
+//         }
+//     }
+//     if (releases.length === 0) {
+//         return null;
+//     }
+//     let releaseDates: ReleaseDate[] = [];
+//     for (const r of releases) {
+//         const rDates = releaseToReleaseDate.get(r);
+//         if (rDates !== undefined) {
+//             releaseDates.concat(rDates);
+//         }
+//     }
+//     if (releaseDates.length === 0) {
+//         return null;
+//     } else {
+//         return releaseDates.reduce((acc, current) => {
+//             // find the earliest date
+//             if (acc.year < current.year) {
+//                 return acc;
+//             } else if (acc.year > current.year) {
+//                 return current;
+//             } else {
+//                 if (acc.month < current.month) {
+//                     return acc;
+//                 } else if (acc.month > current.month) {
+//                     return current;
+//                 } else {
+//                     if (acc.day < current.day) {
+//                         return acc;
+//                     } else {
+//                         return current;
+//                     }
+//                 }
+//             }
+//         })
+//     }
+// }
 function getRecordingFirstReleaseDate(recordingId) {
     const releaseDates = [];
     const stmt = db.prepare("SELECT year,month,day FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?");
@@ -323,6 +394,9 @@ function getRecordingFirstReleaseDate(recordingId) {
         });
     }
 }
+function findArtistIdByMusicBrainzId(id) {
+    return db.prepare("SELECT id FROM artist_musicbrainz_to_db_id WHERE musicbrainz_id = ?").get(id);
+}
 function mapArtistCreditToArtists(artistCredit) {
     return db
         .prepare("SELECT artist FROM artist_credit_to_artist WHERE artist_credit = ?")
@@ -333,35 +407,6 @@ function importAlbums() {
     finish();
 }
 async function finish() {
-    console.log(`${songPromises.length} song promises to process...`);
-    // https://stackoverflow.com/questions/42341331/es6-promise-all-progress
-    function* settledOrder(promises) {
-        let i = 0;
-        let next_resolve;
-        const callback = (original_index, status, field) => (arg) => {
-            next_resolve({
-                status,
-                [field]: arg,
-                original_index,
-                index: i++,
-            });
-        };
-        promises.forEach((promise, index) => promise
-            .then(callback(index, "fullfiled", "value"))
-            .catch(callback(index, "rejected", "reason")));
-        while (i < promises.length) {
-            yield new Promise((r) => (next_resolve = r));
-        }
-    }
-    let progress = 0;
-    const progressMax = songPromises.length;
-    for await (const { index, original_index, status, value, reason, } of settledOrder(songPromises)) {
-        console.log(index, original_index, status, value, reason);
-        progress = index + 1;
-        if (progress % 100 === 0) {
-            console.log(progress);
-        }
-    }
     console.log("=== done ===");
 }
 start();

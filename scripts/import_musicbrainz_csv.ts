@@ -78,10 +78,22 @@ function start() {
     db.exec(
         "CREATE TABLE release_to_release_date (release INTEGER, year INTEGER, month INTEGER, day INTEGER)"
     );
+    db.exec("CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
 
     importArtists();
 }
 
+function getTruncatedName(name: string, maxLength: number) {
+    let n = name;
+    if (n.length > 255) {
+        n = n.substring(0, 255);
+        console.warn(`truncated name: ${name}\n\t-->${n}`);
+    }
+    return n;
+}
+
+let expectedArtists = 0;
+let acknowledgedArtists = 0;
 function importArtists() {
     console.log("=== importing artists...");
     let i = 0;
@@ -97,25 +109,40 @@ function importArtists() {
                 return;
             }
 
-            let name = r[2]; // name is the 3rd field in the csv
-            if (name.length > 255) {
-                name = name.substring(0, 255);
-                console.warn("truncated name", r[2], name);
-            }
+            let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
+            const musicbrainzId = parseInt(r[0]);
             try {
+                expectedArtists++;
                 getArtistsService.addArtist({
                     id: 0, // ignored by service,
                     name,
-                    musicbrainzId: parseInt(r[0]),
+                    musicbrainzId,
+                }).then((artist) => {
+                    if (artist !== null) {
+                        db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(
+                            musicbrainzId,
+                            artist.id
+                        );
+                    }
+                    acknowledgedArtists++;
                 });
             } catch (e) {
+                expectedArtists--;
                 console.error("failed to import artist", r, e);
             }
         },
         onendorclose: () => {
-            console.log("artists imported.");
-            buildArtistCreditMappings();
-        },
+            const interval = setInterval(() => {
+                console.log(
+                    `acknowledged artists: ${acknowledgedArtists}/${expectedArtists}`
+                );
+                if (acknowledgedArtists === expectedArtists) {
+                    clearInterval(interval);
+                    console.log("artists imports prepared.");
+                    buildArtistCreditMappings();
+                }
+            }
+            , 1000);},
     });
 }
 
@@ -259,7 +286,9 @@ function buildReleaseToReleaseCountryMappings() {
 //     map.set(key, array);
 // }
 
-let songPromises: Promise<void>[] = [];
+let expectedSongs = 0;
+let acknowledgedSongs = 0;
+
 function importSongs() {
     console.log("=== preparing song imports...");
     let i = 0;
@@ -275,11 +304,7 @@ function importSongs() {
                 return;
             }
 
-            let name = r[2]; // name is the 3rd field in the csv
-            if (name.length > 255) {
-                name = name.substring(0, 255);
-                console.warn(`truncated name${r[2]}\n\t==> ${name}`);
-            }
+            let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
             const artistCredit = parseInt(r[3]);
             const artistIds = mapArtistCreditToArtists(artistCredit);
             if (!artistIds || artistIds.length === 0) {
@@ -290,56 +315,61 @@ function importSongs() {
                 return;
             }
 
-            songPromises.push(
-                new Promise((resolve, reject) => {
-                    const f = async () => {
-                        // map musicbrainz id to db id
-                        let dbArtistIds: number[] = [];
-                        for (const id of artistIds) {
-                            const dbArtistId =
-                                await getArtistsService.findArtistIdByMusicBrainzId(
-                                    id
-                                );
-                            if (dbArtistId) {
-                                dbArtistIds.push(dbArtistId.id);
-                            }
-                        }
-                        if (dbArtistIds.length === 0) {
-                            // console.warn(
-                            //     `Cannot import song "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
-                            // );
-                            // TODO uncomment this line
-                            return;
-                        }
-                        const recordingId = parseInt(r[0]);
-                        const releaseDate =
-                            getRecordingFirstReleaseDate(recordingId);
-                        const date = new Date();
-                        if (releaseDate !== null) {
-                            date.setUTCFullYear(releaseDate?.year);
-                            date.setUTCMonth(releaseDate.month);
-                            date.setUTCDate(releaseDate.day);
-                        }
-                        //  TODO FIXME: https://musicbrainz.org/doc/Medium album
-                        try {
-                            await getSongsService.addSongWithMultipleArtists(
-                                {
-                                    id: 0, // ignored by service,
-                                    name,
-                                    release_date: date,
-                                },
-                                dbArtistIds
-                            );
-                        } catch (e) {
-                            console.error("failed to import song", r, e);
-                        }
-                    };
-                    f().then(resolve).catch(reject);
-                })
-            );
+            
+            // map musicbrainz id to db id
+            let dbArtistIds: number[] = [];
+            for (const id of artistIds) {
+                const dbArtistId = findArtistIdByMusicBrainzId(id);
+                if (dbArtistId !== undefined) {
+                    dbArtistIds.push(dbArtistId.id);
+                }
+            }
+            if (dbArtistIds.length === 0) {
+                // console.warn(
+                //     `Cannot import song "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
+                // );
+                // TODO uncomment this line
+                return;
+            }
+            const recordingId = parseInt(r[0]);
+            const releaseDate =
+                getRecordingFirstReleaseDate(recordingId);
+            const date = new Date();
+            if (releaseDate !== null) {
+                date.setUTCFullYear(releaseDate?.year);
+                date.setUTCMonth(releaseDate.month);
+                date.setUTCDate(releaseDate.day);
+            }
+
+            try {
+                expectedSongs++;
+                getSongsService.addSongWithMultipleArtists(
+                    {
+                        id: 0, // ignored by service,
+                        name,
+                        release_date: date,
+                    },
+                    dbArtistIds
+                ).then(() => {
+                    acknowledgedSongs++;
+                });
+
+            } catch (e) {
+                console.error("failed to import song", r, e);
+            }
         },
         onendorclose: () => {
-            console.log("songs imports prepared.");
+            const interval = setInterval(() => {
+                console.log(
+                    `acknowledged songs: ${acknowledgedSongs}/${expectedSongs}`
+                );
+                if (acknowledgedSongs === expectedSongs) {
+                    clearInterval(interval);
+                    console.log("songs imported.");
+                    importAlbums();
+                }
+            }, 1000);
+            console.log("songs imported.");
             importAlbums();
         },
     });
@@ -395,7 +425,6 @@ function importSongs() {
 //     }
 // }
 
-type ReleaseDateOrNull = ReleaseDate | null;
 function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
     const releaseDates: ReleaseDate[] = [];
     const stmt = db.prepare(
@@ -436,6 +465,10 @@ function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
     }
 }
 
+function findArtistIdByMusicBrainzId(id: number): { id: number } | undefined {
+    return db.prepare("SELECT id FROM artist_musicbrainz_to_db_id WHERE musicbrainz_id = ?").get(id) as { id: number } | undefined;
+}
+
 function mapArtistCreditToArtists(artistCredit: number): number[] {
     return db
         .prepare(
@@ -447,61 +480,15 @@ function mapArtistCreditToArtists(artistCredit: number): number[] {
 
 function importAlbums() {
     finish();
+    // https://musicbrainz.org/doc/Medium
+    // // import album ===
+    // let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
+    // const artistCredit = parseInt(r[3]);
+
+
 }
 
 async function finish() {
-    console.log(`${songPromises.length} song promises to process...`)
-    // https://stackoverflow.com/questions/42341331/es6-promise-all-progress
-    function* settledOrder(promises: Promise<void>[]) {
-        let i = 0;
-        interface NextResolveParam {
-            status: string;
-            reason?: any;
-            value?: any;
-            original_index: number;
-            index: number;
-        }
-        let next_resolve: (v: NextResolveParam) => void;
-        const callback =
-            (
-                original_index: number,
-                status: string,
-                field: "value" | "reason"
-            ) =>
-            (arg: any) => {
-                next_resolve({
-                    status,
-                    [field]: arg,
-                    original_index,
-                    index: i++,
-                });
-            };
-        promises.forEach((promise, index) =>
-            promise
-                .then(callback(index, "fullfiled", "value"))
-                .catch(callback(index, "rejected", "reason"))
-        );
-        while (i < promises.length) {
-            yield new Promise<NextResolveParam>((r) => (next_resolve = r));
-        }
-    }
-
-    let progress = 0;
-    const progressMax = songPromises.length;
-
-    for await (const {
-        index,
-        original_index,
-        status,
-        value,
-        reason,
-    } of settledOrder(songPromises)) {
-        console.log(index, original_index, status, value, reason);
-        progress = index + 1;
-        if (progress % 100 === 0) {
-            console.log(progress);
-        }
-    }
     console.log("=== done ===");
 }
 
