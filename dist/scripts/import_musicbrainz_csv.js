@@ -27,6 +27,7 @@ const releaseCountryCsv = path.resolve(root, "out_release_country.csv");
 const MAX_ARTISTS = 10_000;
 const MAX_SONGS = 10_000;
 const MAX_MAPPINGS = 200_000;
+const MAX_ALBUMS = 10_000;
 function read(path, callbacks) {
     const stream = fs.createReadStream(path);
     let endOrCloseSent = false; // both events are not mutually exclusive
@@ -57,6 +58,14 @@ function start() {
     db.exec("CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
     importArtists();
 }
+function getTruncatedName(name, maxLength) {
+    let n = name;
+    if (n.length > 255) {
+        n = n.substring(0, 255);
+        console.warn(`truncated name: ${name}\n\t-->${n}`);
+    }
+    return n;
+}
 let expectedArtists = 0;
 let acknowledgedArtists = 0;
 function importArtists() {
@@ -73,19 +82,17 @@ function importArtists() {
                 stream.destroy();
                 return;
             }
-            let name = r[2]; // name is the 3rd field in the csv
-            if (name.length > 255) {
-                name = name.substring(0, 255);
-                console.warn("truncated name", r[2], name);
-            }
+            let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
             const musicbrainzId = parseInt(r[0]);
             try {
                 expectedArtists++;
-                dependencies_1.getArtistsService.addArtist({
+                dependencies_1.getArtistsService
+                    .addArtist({
                     id: 0, // ignored by service,
                     name,
                     musicbrainzId,
-                }).then((artist) => {
+                })
+                    .then((artist) => {
                     if (artist !== null) {
                         db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(musicbrainzId, artist.id);
                     }
@@ -226,7 +233,7 @@ function buildReleaseToReleaseCountryMappings() {
 let expectedSongs = 0;
 let acknowledgedSongs = 0;
 function importSongs() {
-    console.log("=== preparing song imports...");
+    console.log("=== importing songs...");
     let i = 0;
     read(songsCsv, {
         ondata: (r, stream) => {
@@ -239,11 +246,7 @@ function importSongs() {
                 stream.destroy();
                 return;
             }
-            let name = r[2]; // name is the 3rd field in the csv
-            if (name.length > 255) {
-                name = name.substring(0, 255);
-                console.warn(`truncated name${r[2]}\n\t==> ${name}`);
-            }
+            let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
             const artistCredit = parseInt(r[3]);
             const artistIds = mapArtistCreditToArtists(artistCredit);
             if (!artistIds || artistIds.length === 0) {
@@ -254,13 +257,7 @@ function importSongs() {
                 return;
             }
             // map musicbrainz id to db id
-            let dbArtistIds = [];
-            for (const id of artistIds) {
-                const dbArtistId = findArtistIdByMusicBrainzId(id);
-                if (dbArtistId !== undefined) {
-                    dbArtistIds.push(dbArtistId.id);
-                }
-            }
+            let dbArtistIds = artistIdsToDbIds(artistIds);
             if (dbArtistIds.length === 0) {
                 // console.warn(
                 //     `Cannot import song "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
@@ -270,20 +267,16 @@ function importSongs() {
             }
             const recordingId = parseInt(r[0]);
             const releaseDate = getRecordingFirstReleaseDate(recordingId);
-            const date = new Date();
-            if (releaseDate !== null) {
-                date.setUTCFullYear(releaseDate?.year);
-                date.setUTCMonth(releaseDate.month);
-                date.setUTCDate(releaseDate.day);
-            }
-            //  TODO FIXME: https://musicbrainz.org/doc/Medium album
+            const date = convertToDate(releaseDate);
             try {
                 expectedSongs++;
-                dependencies_1.getSongsService.addSongWithMultipleArtists({
+                dependencies_1.getSongsService
+                    .addSongWithMultipleArtists({
                     id: 0, // ignored by service,
                     name,
                     release_date: date,
-                }, dbArtistIds).then(() => {
+                }, dbArtistIds)
+                    .then(() => {
                     acknowledgedSongs++;
                 });
             }
@@ -300,8 +293,6 @@ function importSongs() {
                     importAlbums();
                 }
             }, 1000);
-            console.log("songs imported.");
-            importAlbums();
         },
     });
 }
@@ -367,35 +358,58 @@ function getRecordingFirstReleaseDate(recordingId) {
         return null;
     }
     else {
-        return releaseDates.reduce((acc, current) => {
-            // find the earliest date
-            if (acc.year < current.year) {
+        return getMinimumDate(releaseDates);
+    }
+}
+function getReleaseFirstReleaseDate(releaseId) {
+    const releaseDates = [];
+    const stmt = db.prepare("SELECT year,month,day FROM release_to_release_date WHERE release = ?");
+    for (const row of stmt.iterate(releaseId)) {
+        const r = row;
+        releaseDates.push({
+            year: r.year,
+            month: r.month,
+            day: r.day,
+        });
+    }
+    if (releaseDates.length === 0) {
+        return null;
+    }
+    else {
+        return getMinimumDate(releaseDates);
+    }
+}
+function getMinimumDate(releaseDates) {
+    return releaseDates.reduce((acc, current) => {
+        // find the earliest date
+        if (acc.year < current.year) {
+            return acc;
+        }
+        else if (acc.year > current.year) {
+            return current;
+        }
+        else {
+            if (acc.month < current.month) {
                 return acc;
             }
-            else if (acc.year > current.year) {
+            else if (acc.month > current.month) {
                 return current;
             }
             else {
-                if (acc.month < current.month) {
+                if (acc.day < current.day) {
                     return acc;
                 }
-                else if (acc.month > current.month) {
+                else {
                     return current;
                 }
-                else {
-                    if (acc.day < current.day) {
-                        return acc;
-                    }
-                    else {
-                        return current;
-                    }
-                }
             }
-        });
-    }
+        }
+    });
 }
 function findArtistIdByMusicBrainzId(id) {
-    return db.prepare("SELECT id FROM artist_musicbrainz_to_db_id WHERE musicbrainz_id = ?").get(id);
+    return db
+        .prepare("SELECT id FROM artist_musicbrainz_to_db_id WHERE musicbrainz_id = ?")
+        .get(id);
 }
 function mapArtistCreditToArtists(artistCredit) {
     return db
@@ -403,8 +417,106 @@ function mapArtistCreditToArtists(artistCredit) {
         .all(artistCredit)
         .map((v) => v.artist);
 }
+let expectedAlbums = 0;
+let acknowledgedAlbums = 0;
+/**
+ * @see https://musicbrainz.org/doc/Medium
+ */
 function importAlbums() {
-    finish();
+    // finish();
+    console.log("=== importing albums...");
+    let i = 0;
+    read(releaseCsv, {
+        ondata: (r, stream) => {
+            // log progress
+            i++;
+            if (i % 1000 === 0 && i <= MAX_ALBUMS) {
+                console.log(i);
+            }
+            if (i > MAX_ALBUMS) {
+                stream.destroy();
+                return;
+            }
+            let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
+            const artistCredit = parseInt(r[3]);
+            const artistIds = mapArtistCreditToArtists(artistCredit);
+            if (!artistIds || artistIds.length === 0) {
+                // console.warn(
+                //     `Cannot import album "${name} because it doesn't have any bound artist in the database."`
+                // );
+                // TODO uncomment this line
+                return;
+            }
+            // map musicbrainz id to db id
+            let dbArtistIds = artistIdsToDbIds(artistIds);
+            if (dbArtistIds.length === 0) {
+                // console.warn(
+                //     `Cannot import album "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
+                // );
+                // TODO uncomment this line
+                return;
+            }
+            const recordingId = parseInt(r[0]);
+            const releaseDate = getReleaseFirstReleaseDate(recordingId);
+            const date = convertToDate(releaseDate);
+            try {
+                expectedAlbums++;
+                dependencies_1.albumsService
+                    .addAlbumWithMultipleArtists({
+                    id: 0, // ignored by service,
+                    name,
+                    release_date: date,
+                }, dbArtistIds)
+                    .then(() => {
+                    acknowledgedAlbums++;
+                });
+            }
+            catch (e) {
+                console.error("failed to import album", r, e);
+            }
+        },
+        onendorclose: () => {
+            const interval = setInterval(() => {
+                console.log(`acknowledged albums: ${acknowledgedAlbums}/${expectedAlbums}`);
+                if (acknowledgedAlbums === expectedAlbums) {
+                    clearInterval(interval);
+                    console.log("albums imported.");
+                    finish();
+                }
+            }, 1000);
+        },
+    });
+    // // import album ===
+    // let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
+    // const artistCredit = parseInt(r[3]);
+}
+function convertToDate(releaseDate) {
+    const date = new Date();
+    if (releaseDate !== null) {
+        date.setUTCFullYear(Math.max(1970, releaseDate.year));
+        date.setUTCMonth(releaseDate.month);
+        date.setUTCDate(releaseDate.day);
+    }
+    return date;
+}
+const artistIdsToDbIdsCache = new Map();
+function artistIdsToDbIds(artistIds) {
+    let dbArtistIds = [];
+    for (const id of artistIds) {
+        let dbArtistId;
+        if (artistIdsToDbIdsCache.has(id)) {
+            dbArtistId = artistIdsToDbIdsCache.get(id);
+            continue;
+        }
+        else {
+            dbArtistId = findArtistIdByMusicBrainzId(id)?.id;
+            artistIdsToDbIdsCache.set(id, dbArtistId);
+        }
+        if (dbArtistId !== undefined) {
+            dbArtistIds.push(dbArtistId);
+        }
+    }
+    return dbArtistIds;
 }
 async function finish() {
     console.log("=== done ===");

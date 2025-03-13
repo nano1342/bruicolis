@@ -36,5 +36,15 @@ export class AlbumsService {
 
         return this.albumRepository.insertAlbum(albumToInsert, artistId);
     }
-    
+
+    async addAlbumWithMultipleArtists(albumToInsert: Album, artistIds: number[]) {
+        if (artistIds.length < 1) {
+            throw new Errors.IncorrectParameterError("at least one artist ID is required.");
+        }
+        let albums: (Album | Errors.ErrorType | null)[] = [];
+        for (const id of artistIds) {
+            albums.push(await this.addAlbum(albumToInsert, id));
+        }
+        return albums;
+    }    
 }

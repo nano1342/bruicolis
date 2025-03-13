@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { getArtistsService, getSongsService } from "../src/dependencies";
+import { getArtistsService, getSongsService, albumsService } from "../src/dependencies";
 import { Artist } from "../src/Domains/Models/Artist";
 
 // import artists csv from file
@@ -33,9 +33,10 @@ interface ReleaseDate {
 // const mediumToRelease = new Map<number, number[]>();
 // const releaseToReleaseDate = new Map<number, ReleaseDate[]>();
 
-const MAX_ARTISTS = 10_000;
-const MAX_SONGS = 10_000;
+const MAX_ARTISTS = 50_000;
+const MAX_SONGS = 5_000;
 const MAX_MAPPINGS = 200_000;
+const MAX_ALBUMS = 5_000;
 
 function read(
     path: unknown,
@@ -78,7 +79,9 @@ function start() {
     db.exec(
         "CREATE TABLE release_to_release_date (release INTEGER, year INTEGER, month INTEGER, day INTEGER)"
     );
-    db.exec("CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
+    db.exec(
+        "CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)"
+    );
 
     importArtists();
 }
@@ -113,19 +116,20 @@ function importArtists() {
             const musicbrainzId = parseInt(r[0]);
             try {
                 expectedArtists++;
-                getArtistsService.addArtist({
-                    id: 0, // ignored by service,
-                    name,
-                    musicbrainzId,
-                }).then((artist) => {
-                    if (artist !== null) {
-                        db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(
-                            musicbrainzId,
-                            artist.id
-                        );
-                    }
-                    acknowledgedArtists++;
-                });
+                getArtistsService
+                    .addArtist({
+                        id: 0, // ignored by service,
+                        name,
+                        musicbrainzId,
+                    })
+                    .then((artist) => {
+                        if (artist !== null) {
+                            db.prepare(
+                                "INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)"
+                            ).run(musicbrainzId, artist.id);
+                        }
+                        acknowledgedArtists++;
+                    });
             } catch (e) {
                 expectedArtists--;
                 console.error("failed to import artist", r, e);
@@ -141,8 +145,8 @@ function importArtists() {
                     console.log("artists imports prepared.");
                     buildArtistCreditMappings();
                 }
-            }
-            , 1000);},
+            }, 1000);
+        },
     });
 }
 
@@ -290,7 +294,7 @@ let expectedSongs = 0;
 let acknowledgedSongs = 0;
 
 function importSongs() {
-    console.log("=== preparing song imports...");
+    console.log("=== importing songs...");
     let i = 0;
     read(songsCsv, {
         ondata: (r, stream) => {
@@ -315,15 +319,8 @@ function importSongs() {
                 return;
             }
 
-            
             // map musicbrainz id to db id
-            let dbArtistIds: number[] = [];
-            for (const id of artistIds) {
-                const dbArtistId = findArtistIdByMusicBrainzId(id);
-                if (dbArtistId !== undefined) {
-                    dbArtistIds.push(dbArtistId.id);
-                }
-            }
+            let dbArtistIds: number[] = artistIdsToDbIds(artistIds);
             if (dbArtistIds.length === 0) {
                 // console.warn(
                 //     `Cannot import song "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
@@ -332,28 +329,23 @@ function importSongs() {
                 return;
             }
             const recordingId = parseInt(r[0]);
-            const releaseDate =
-                getRecordingFirstReleaseDate(recordingId);
-            const date = new Date();
-            if (releaseDate !== null) {
-                date.setUTCFullYear(releaseDate?.year);
-                date.setUTCMonth(releaseDate.month);
-                date.setUTCDate(releaseDate.day);
-            }
+            const releaseDate = getRecordingFirstReleaseDate(recordingId);
+            const date = convertToDate(releaseDate);
 
             try {
                 expectedSongs++;
-                getSongsService.addSongWithMultipleArtists(
-                    {
-                        id: 0, // ignored by service,
-                        name,
-                        release_date: date,
-                    },
-                    dbArtistIds
-                ).then(() => {
-                    acknowledgedSongs++;
-                });
-
+                getSongsService
+                    .addSongWithMultipleArtists(
+                        {
+                            id: 0, // ignored by service,
+                            name,
+                            release_date: date,
+                        },
+                        dbArtistIds
+                    )
+                    .then(() => {
+                        acknowledgedSongs++;
+                    });
             } catch (e) {
                 console.error("failed to import song", r, e);
             }
@@ -369,8 +361,6 @@ function importSongs() {
                     importAlbums();
                 }
             }, 1000);
-            console.log("songs imported.");
-            importAlbums();
         },
     });
 }
@@ -442,31 +432,60 @@ function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
     if (releaseDates.length === 0) {
         return null;
     } else {
-        return releaseDates.reduce((acc, current) => {
-            // find the earliest date
-            if (acc.year < current.year) {
-                return acc;
-            } else if (acc.year > current.year) {
-                return current;
-            } else {
-                if (acc.month < current.month) {
-                    return acc;
-                } else if (acc.month > current.month) {
-                    return current;
-                } else {
-                    if (acc.day < current.day) {
-                        return acc;
-                    } else {
-                        return current;
-                    }
-                }
-            }
-        });
+        return getMinimumDate(releaseDates);
     }
 }
 
+function getReleaseFirstReleaseDate(releaseId: number): ReleaseDate | null {
+    const releaseDates: ReleaseDate[] = [];
+    const stmt = db.prepare(
+        "SELECT year,month,day FROM release_to_release_date WHERE release = ?"
+    );
+    for (const row of stmt.iterate(releaseId)) {
+        const r = row as { year: number; month: number; day: number };
+        releaseDates.push({
+            year: r.year,
+            month: r.month,
+            day: r.day,
+        });
+    }
+
+    if (releaseDates.length === 0) {
+        return null;
+    } else {
+        return getMinimumDate(releaseDates);
+    }
+}
+
+function getMinimumDate(releaseDates: ReleaseDate[]): ReleaseDate {
+    return releaseDates.reduce((acc, current) => {
+        // find the earliest date
+        if (acc.year < current.year) {
+            return acc;
+        } else if (acc.year > current.year) {
+            return current;
+        } else {
+            if (acc.month < current.month) {
+                return acc;
+            } else if (acc.month > current.month) {
+                return current;
+            } else {
+                if (acc.day < current.day) {
+                    return acc;
+                } else {
+                    return current;
+                }
+            }
+        }
+    });
+}
+
 function findArtistIdByMusicBrainzId(id: number): { id: number } | undefined {
-    return db.prepare("SELECT id FROM artist_musicbrainz_to_db_id WHERE musicbrainz_id = ?").get(id) as { id: number } | undefined;
+    return db
+        .prepare(
+            "SELECT id FROM artist_musicbrainz_to_db_id WHERE musicbrainz_id = ?"
+        )
+        .get(id) as { id: number } | undefined;
 }
 
 function mapArtistCreditToArtists(artistCredit: number): number[] {
@@ -478,14 +497,116 @@ function mapArtistCreditToArtists(artistCredit: number): number[] {
         .map((v) => (v as { artist: number }).artist);
 }
 
+let expectedAlbums = 0;
+let acknowledgedAlbums = 0;
+/**
+ * @see https://musicbrainz.org/doc/Medium
+ */
 function importAlbums() {
-    finish();
-    // https://musicbrainz.org/doc/Medium
+    // finish();
+    console.log("=== importing albums...");
+    let i = 0;
+
+    read(releaseCsv, {
+        ondata: (r, stream) => {
+            // log progress
+            i++;
+            if (i % 1000 === 0 && i <= MAX_ALBUMS) {
+                console.log(i);
+            }
+            if (i > MAX_ALBUMS) {
+                stream.destroy();
+                return;
+            }
+
+            let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
+            const artistCredit = parseInt(r[3]);
+            const artistIds = mapArtistCreditToArtists(artistCredit);
+            if (!artistIds || artistIds.length === 0) {
+                // console.warn(
+                //     `Cannot import album "${name} because it doesn't have any bound artist in the database."`
+                // );
+                // TODO uncomment this line
+                return;
+            }
+
+            // map musicbrainz id to db id
+            let dbArtistIds: number[] = artistIdsToDbIds(artistIds);
+            if (dbArtistIds.length === 0) {
+                // console.warn(
+                //     `Cannot import album "${name} because it doesn't have any bound artist (with corresponding musicbrainz id) in the database."`
+                // );
+                // TODO uncomment this line
+                return;
+            }
+            const recordingId = parseInt(r[0]);
+            const releaseDate = getReleaseFirstReleaseDate(recordingId);
+            const date = convertToDate(releaseDate);
+
+            try {
+                expectedAlbums++;
+                albumsService
+                    .addAlbumWithMultipleArtists(
+                        {
+                            id: 0, // ignored by service,
+                            name,
+                            release_date: date,
+                        },
+                        dbArtistIds
+                    )
+                    .then(() => {
+                        acknowledgedAlbums++;
+                    });
+            } catch (e) {
+                console.error("failed to import album", r, e);
+            }
+        },
+        onendorclose: () => {
+            const interval = setInterval(() => {
+                console.log(
+                    `acknowledged albums: ${acknowledgedAlbums}/${expectedAlbums}`
+                );
+                if (acknowledgedAlbums === expectedAlbums) {
+                    clearInterval(interval);
+                    console.log("albums imported.");
+                    finish();
+                }
+            }, 1000);
+        },
+    });
     // // import album ===
     // let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
     // const artistCredit = parseInt(r[3]);
+}
 
+function convertToDate(releaseDate: ReleaseDate | null): Date {
+    const date = new Date();
+    if (releaseDate !== null) {
+        date.setUTCFullYear(Math.max(1970, releaseDate.year));
+        date.setUTCMonth(releaseDate.month);
+        date.setUTCDate(releaseDate.day);
+    }
+    return date;
+}
 
+const artistIdsToDbIdsCache = new Map<number, number | undefined>();
+function artistIdsToDbIds(artistIds: number[]): number[] {
+    let dbArtistIds: number[] = [];
+    for (const id of artistIds) {
+        let dbArtistId: number | undefined;
+        if (artistIdsToDbIdsCache.has(id)) {
+            dbArtistId = artistIdsToDbIdsCache.get(id)!;
+            continue;
+        } else {
+            dbArtistId = findArtistIdByMusicBrainzId(id)?.id;
+            artistIdsToDbIdsCache.set(id, dbArtistId);
+        }
+        if (dbArtistId !== undefined) {
+            dbArtistIds.push(dbArtistId);
+        }
+
+    }
+    return dbArtistIds;
 }
 
 async function finish() {
