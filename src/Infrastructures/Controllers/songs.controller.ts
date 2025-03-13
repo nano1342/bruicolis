@@ -21,7 +21,7 @@ export default class SongController {
         console.log(req.body);
 
         if (req.body.page != null && req.body.limit != null) {
-            result = await this.getSongsService.getPage(req.body.page, req.body.limit);
+            result = await this.getSongsService.getPage(req.body.page, req.body.limit, req.body.filters);
         } else {
             result = await this.getSongsService.getAll(req.body.filters);
         }

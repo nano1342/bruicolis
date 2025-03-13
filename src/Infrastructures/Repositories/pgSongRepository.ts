@@ -14,12 +14,60 @@ export class PgSongRepository implements SongRepository {
 
     async selectAll(filters: object) {
         let songs;
+        let sqlOptions: { [key: string]: any } = {
+            where: {
+                AND: []
+            }
+        };
         if (filters != null) {
-            let sqlOptions: { [key: string]: any } = {
-                where: {
-                    AND: []
+            if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
+                const tags = filters['tagsOR'] as [];
+                sqlOptions.where.AND.push(
+                    {
+                        TagLink: {
+                            some: {
+                                idTag: { in: tags }
+                            }
+                        }
+                    }
+                );
+            }
+
+            if ('tagsAND' in filters && (filters['tagsAND'] as []).length > 0) {
+                const tags = filters['tagsAND'] as [];
+                let obj: { [key: string]: any } = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } })
                 }
-            };
+
+                sqlOptions.where.AND.push(obj);
+            }
+
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+            }
+        }
+
+        songs = await this.prisma.song.findMany(sqlOptions as object);
+        
+        return songs.map((song) => {
+            return {
+                id: song.id,
+                name: song.name,
+                release_date: song.releaseDate
+            }
+        })
+    }
+
+    async selectPage(skip: number, take: number, filters: object) {
+        let songs;
+        const sqlOptions: { [key: string]: any } = {
+            skip: skip,
+            take: take
+        }
+
+        if (filters != null) {
+            sqlOptions.where = { AND: [] }
 
             if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
                 const tags = filters['tagsOR'] as [];
@@ -51,26 +99,9 @@ export class PgSongRepository implements SongRepository {
             console.log(util.inspect(sqlOptions, {showHidden: false, depth: null, colors: true}))
             songs = await this.prisma.song.findMany(sqlOptions as object);
 
-        } else {
-            songs = await this.prisma.song.findMany();
-        }
-        
-        return songs.map((song) => {
-            return {
-                id: song.id,
-                name: song.name,
-                release_date: song.releaseDate
-            }
-        })
-    }
-
-    async selectPage(skip: number, take: number) {
-        const options = {
-            skip: skip,
-            take: take
         }
 
-        let songs = await this.prisma.song.findMany(options);
+        songs = await this.prisma.song.findMany(sqlOptions as object);
 
         return songs.map((song) => {
             return {

@@ -6,7 +6,7 @@ export interface SongRepository {
     
     selectAll(filters: object) :Promise<Song[]>
     
-    selectPage(skip: number, take: number) :Promise<Song[]>
+    selectPage(skip: number, take: number, filters: object) :Promise<Song[]>
     
     selectOneById(songId: number) :Promise<Song | null>
     

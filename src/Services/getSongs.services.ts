@@ -15,12 +15,12 @@ export class GetSongsService {
         return this.songRepository.selectAll(filters);
     }
 
-    getPage(page: number, limit: number) {
+    getPage(page: number, limit: number, filters: object) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
                 return Errors.ErrorType.INCORRECT_PARAMETER;
             }
-            return this.songRepository.selectPage((page-1)*limit, limit)
+            return this.songRepository.selectPage((page-1)*limit, limit, filters)
         } catch (error) {
             return Errors.ErrorType.INCORRECT_PARAMETER;
         }
