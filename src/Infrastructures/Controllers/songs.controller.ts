@@ -124,13 +124,13 @@ export default class SongController {
         }
         
         
-        const succeed = await this.getSongsService.addTag(id, tagId);
-        let respBody;
-        if (succeed == null) {
-            const respBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
-            res.status(404).send(respBody);
-            return;
-        }
+        const respBody = await this.getSongsService.addTag(id, tagId);
+        // let respBody;
+        // if (succeed == null) {
+        //     const respBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
+        //     res.status(404).send(respBody);
+        //     return;
+        // }
 
         res.send(respBody);
     }

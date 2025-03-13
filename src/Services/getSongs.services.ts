@@ -1,11 +1,13 @@
 import { Song } from "../Domains/Models/Song";
 import { SongRepository } from "../Domains/repositories/songRepository";
+import { TagRepository } from "../Domains/repositories/tagRepository";
 import * as Errors from "../Utils/Errors";
+import { ResponseBody } from "../Utils/ResponseBody";
 
 //potentiellement renommer en service
 export class GetSongsService {
 
-    constructor(private readonly songRepository:SongRepository) {
+    constructor(private readonly songRepository:SongRepository, private readonly tagRepository:TagRepository) {
         
     }
 
@@ -36,9 +38,14 @@ export class GetSongsService {
         return this.songRepository.insertSong(songToInsert, artistd);
     }
 
-    addTag(songId: number, tagId: number) {
+    async addTag(songId: number, tagId: number) {
         //vérifications préalables avant requête
 
+        const tag = await this.tagRepository.selectOneById(tagId);
+        
+        if (tag == null) {
+            return ResponseBody.getResponseBodyFail("The provided tag ID doesn't exist.", Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER))
+        }
         return this.songRepository.insertTag(songId, tagId);
     }
     

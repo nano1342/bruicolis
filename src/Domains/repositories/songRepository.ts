@@ -1,5 +1,6 @@
 import { Song } from "../Models/Song";
 import { ErrorType } from "../../Utils/Errors";
+import { ResponseBody } from "../../Utils/ResponseBody";
 
 export interface SongRepository {
     
@@ -11,5 +12,5 @@ export interface SongRepository {
     
     insertSong(songToInsertbis: Song, artistd: number) :Promise<Song | ErrorType | null>
     
-    insertTag(songId: number, tagId: number) :Promise<boolean>
+    insertTag(songId: number, tagId: number) :Promise<ResponseBody>
 }

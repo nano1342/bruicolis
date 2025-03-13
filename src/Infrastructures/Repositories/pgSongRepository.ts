@@ -2,6 +2,7 @@ import { Song, PrismaClient, SongArtistLink, TagLink } from "@prisma/client";
 import { Song as SongModel } from "../../Domains/Models/Song";
 import { SongRepository } from "../../Domains/repositories/songRepository";
 import * as Errors from "../../Utils/Errors";
+import { ResponseBody } from "../../Utils/ResponseBody";
 
 //TODO ajouter objet de lien SongArtistLink
 export class PgSongRepository implements SongRepository {
@@ -88,7 +89,7 @@ export class PgSongRepository implements SongRepository {
      * Adds a tag to the song.
      * @param songId 
      * @param tagId 
-     * @returns {boolean} True if successful, false otherwise.
+     * @returns {ResponseBody}
      */
     async insertTag(songId: number, tagId: number) {
         try {
@@ -102,10 +103,9 @@ export class PgSongRepository implements SongRepository {
                 }
             });
         } catch (error) {
-            
-            return false;
+            return ResponseBody.getResponseBodyFail("Something went wrong. Tag not added.", Errors.getErrorBodyDefault(Errors.ErrorType.SERVER_ERROR));
         }
 
-        return true;
+        return ResponseBody.getResponseBodyOk("Tag successfully added to the song.");
     }
 }
