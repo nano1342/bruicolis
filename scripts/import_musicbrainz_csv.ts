@@ -27,8 +27,24 @@ import { AsyncLocalStorage } from "async_hooks";
  */
 let asyncLocalStorage: AsyncLocalStorage<{
     i: number;
-    performance: typeof performance;
 }> = new AsyncLocalStorage();
+
+interface PerfFrame { start: number; end: number }
+function perfNow(): PerfFrame {
+    return { start: performance.now(), end: 0 };
+}
+function perfEnd(t: PerfFrame | undefined, name: string) {
+    if (t === undefined) {
+        console.error("perfEnd: t is undefined", "i="+asyncLocalStorage.getStore()?.i);
+        return;
+    }
+    t.end = performance.now();
+    console.log(
+        name,
+        "i="+asyncLocalStorage.getStore()?.i,
+        t.end - t.start
+    );
+}
 
 const fs = require("fs");
 const path = require("path");
@@ -124,6 +140,7 @@ let getTruncatedName = (name: string, maxLength: number) => {
 
 let expectedArtists = 0;
 let acknowledgedArtists = 0;
+let artistPerfTimings = new Map<string, PerfFrame>();
 function importArtists() {
     console.log("=== importing artists...");
     asyncLocalStorage = new AsyncLocalStorage();
@@ -144,12 +161,8 @@ function importArtists() {
             const musicbrainzId = parseInt(r[0]);
             try {
                 expectedArtists++;
-                asyncLocalStorage.run({ i, performance }, () => {
-                    perfMarkIfAny("addArtist-start");
-                    console.log(
-                        "marking addArtist-start" +
-                            asyncLocalStorage.getStore()?.i
-                    );
+                asyncLocalStorage.run({ i }, () => {
+                    artistPerfTimings.set(name, perfNow());
                     getArtistsService
                         .addArtist({
                             id: 0, // ignored by service,
@@ -163,14 +176,9 @@ function importArtists() {
                                 ).run(musicbrainzId, artist.id);
                             }
                             acknowledgedArtists++;
-                            perfMarkIfAny("addArtist-end");
-                            perfMeasureIfAny(
-                                "addArtist-measure",
-                                "addArtist-start",
-                                "addArtist-end"
-                            );
-                        })
-                        .finally(() => {});
+                            perfEnd(artistPerfTimings.get(name), "addArtist");
+                            artistPerfTimings.delete(name);
+                        });
                 });
             } catch (e) {
                 expectedArtists--;
@@ -334,7 +342,7 @@ function buildReleaseToReleaseCountryMappings() {
 
 let expectedSongs = 0;
 let acknowledgedSongs = 0;
-let songPerfTimings = new Map<string, { start: number; end: number }>();
+let songPerfTimings = new Map<string, PerfFrame>();
 function importSongs() {
     console.log("=== importing songs...");
     asyncLocalStorage = new AsyncLocalStorage();
@@ -377,16 +385,8 @@ function importSongs() {
 
             try {
                 expectedSongs++;
-                asyncLocalStorage.run({ i, performance }, async () => {
-                    songPerfTimings.set(name, {
-                        start: performance.now(),
-                        end: 0,
-                    });
-                    perfMarkIfAny("addSong-start");
-                    console.log(
-                        "marking addSong-start" +
-                            asyncLocalStorage.getStore()?.i
-                    );
+                asyncLocalStorage.run({ i }, () => {
+                    songPerfTimings.set(name, perfNow());
                     getSongsService
                         .addSongWithMultipleArtists(
                             {
@@ -398,19 +398,8 @@ function importSongs() {
                         )
                         .then(() => {
                             acknowledgedSongs++;
-                            perfMarkIfAny("addSong-end");
-                            perfMeasureIfAny(
-                                "addSong-measure",
-                                "addSong-start",
-                                "addSong-end"
-                            );
-                            songPerfTimings.get(name)!.end = performance.now();
-                            const t = songPerfTimings.get(name)!;
-                            console.log(
-                                "song timing",
-                                asyncLocalStorage.getStore()?.i,
-                                t.end - t.start
-                            );
+                            perfEnd(songPerfTimings.get(name), "addSong");
+                            songPerfTimings.delete(name);
                         });
                 });
             } catch (e) {
@@ -588,6 +577,7 @@ function mapArtistCreditToArtists(artistCredit: number): number[] {
 
 let expectedAlbums = 0;
 let acknowledgedAlbums = 0;
+let albumPerfTimings = new Map<string, PerfFrame>();
 /**
  * @see https://musicbrainz.org/doc/Medium
  */
@@ -634,8 +624,8 @@ function importAlbums() {
 
             try {
                 expectedAlbums++;
-                asyncLocalStorage.run({ i, performance }, () => {
-                    perfMarkIfAny("addAlbum-start");
+                asyncLocalStorage.run({ i }, () => {
+                    albumPerfTimings.set(name, perfNow());
                     albumsService
                         .addAlbumWithMultipleArtists(
                             {
@@ -647,12 +637,9 @@ function importAlbums() {
                         )
                         .then(() => {
                             acknowledgedAlbums++;
-                            perfMarkIfAny("addAlbum-end");
-                            perfMeasureIfAny(
-                                "addAlbum-measure",
-                                "addAlbum-start",
-                                "addAlbum-end"
-                            );
+                            const perf = albumPerfTimings.get(name);
+                            perfEnd(albumPerfTimings.get(name), "addAlbum");
+                            albumPerfTimings.delete(name);
                         });
                 });
             } catch (e) {
@@ -720,12 +707,6 @@ async function finish() {
 
 // https://nodejs.org/api/perf_hooks.html#measuring-the-duration-of-async-operations
 let disconnectPerfIfAny = () => {};
-let perfMarkIfAny: (s: string) => void = () => {};
-let perfMeasureIfAny: (
-    m: string,
-    start: string,
-    end: string
-) => void = () => {};
 
 if (MEASURE_PERFORMANCE) {
     // artistIdsToDbIds = performance.timerify(artistIdsToDbIds);
@@ -750,29 +731,6 @@ if (MEASURE_PERFORMANCE) {
         }
     );
     obs.observe({ entryTypes: ["function", "measure"] });
-
-    const withStoreId = (s: string) =>
-        s + "-" + asyncLocalStorage.getStore()?.i;
-    disconnectPerfIfAny = () => obs.disconnect();
-    perfMarkIfAny = (s: string) =>
-        asyncLocalStorage.getStore()?.performance.mark(withStoreId(s));
-    perfMeasureIfAny = (name: string, start: string, end: string) => {
-        try {
-            asyncLocalStorage
-                .getStore()
-                ?.performance.measure(
-                    withStoreId(name),
-                    withStoreId(start),
-                    withStoreId(end)
-                );
-        } catch (e) {
-            // spam a lot
-            console.error(
-                "failed to measure " + withStoreId(name),
-                (e as Error).message
-            );
-        }
-    };
 }
 
 start();

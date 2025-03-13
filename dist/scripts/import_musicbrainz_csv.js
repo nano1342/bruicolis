@@ -21,6 +21,17 @@ const async_hooks_1 = require("async_hooks");
  * needs to be reset for each async operation
  */
 let asyncLocalStorage = new async_hooks_1.AsyncLocalStorage();
+function perfNow() {
+    return { start: perf_hooks_1.performance.now(), end: 0 };
+}
+function perfEnd(t, name) {
+    if (t === undefined) {
+        console.error("perfEnd: t is undefined", "i=" + asyncLocalStorage.getStore()?.i);
+        return;
+    }
+    t.end = perf_hooks_1.performance.now();
+    console.log(name, "i=" + asyncLocalStorage.getStore()?.i, t.end - t.start);
+}
 const fs = require("fs");
 const path = require("path");
 let db;
@@ -86,6 +97,7 @@ let getTruncatedName = (name, maxLength) => {
 };
 let expectedArtists = 0;
 let acknowledgedArtists = 0;
+let artistPerfTimings = new Map();
 function importArtists() {
     console.log("=== importing artists...");
     asyncLocalStorage = new async_hooks_1.AsyncLocalStorage();
@@ -105,9 +117,8 @@ function importArtists() {
             const musicbrainzId = parseInt(r[0]);
             try {
                 expectedArtists++;
-                asyncLocalStorage.run({ i, performance: perf_hooks_1.performance }, () => {
-                    perfMarkIfAny("addArtist-start");
-                    console.log("marking addArtist-start" + asyncLocalStorage.getStore()?.i);
+                asyncLocalStorage.run({ i }, () => {
+                    artistPerfTimings.set(name, perfNow());
                     dependencies_1.getArtistsService
                         .addArtist({
                         id: 0, // ignored by service,
@@ -119,9 +130,8 @@ function importArtists() {
                             db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(musicbrainzId, artist.id);
                         }
                         acknowledgedArtists++;
-                        perfMarkIfAny("addArtist-end");
-                        perfMeasureIfAny("addArtist-measure", "addArtist-start", "addArtist-end");
-                    }).finally(() => {
+                        perfEnd(artistPerfTimings.get(name), "addArtist");
+                        artistPerfTimings.delete(name);
                     });
                 });
             }
@@ -298,10 +308,8 @@ function importSongs() {
             const date = convertToDate(releaseDate);
             try {
                 expectedSongs++;
-                asyncLocalStorage.run({ i, performance: perf_hooks_1.performance }, async () => {
-                    songPerfTimings.set(name, { start: perf_hooks_1.performance.now(), end: 0 });
-                    perfMarkIfAny("addSong-start");
-                    console.log("marking addSong-start" + asyncLocalStorage.getStore()?.i);
+                asyncLocalStorage.run({ i }, () => {
+                    songPerfTimings.set(name, perfNow());
                     dependencies_1.getSongsService
                         .addSongWithMultipleArtists({
                         id: 0, // ignored by service,
@@ -310,11 +318,8 @@ function importSongs() {
                     }, dbArtistIds)
                         .then(() => {
                         acknowledgedSongs++;
-                        perfMarkIfAny("addSong-end");
-                        perfMeasureIfAny("addSong-measure", "addSong-start", "addSong-end");
-                        songPerfTimings.get(name).end = perf_hooks_1.performance.now();
-                        const t = songPerfTimings.get(name);
-                        console.log("song timing", asyncLocalStorage.getStore()?.i, t.end - t.start);
+                        perfEnd(songPerfTimings.get(name), "addSong");
+                        songPerfTimings.delete(name);
                     });
                 });
             }
@@ -477,6 +482,7 @@ function mapArtistCreditToArtists(artistCredit) {
 }
 let expectedAlbums = 0;
 let acknowledgedAlbums = 0;
+let albumPerfTimings = new Map();
 /**
  * @see https://musicbrainz.org/doc/Medium
  */
@@ -519,8 +525,8 @@ function importAlbums() {
             const date = convertToDate(releaseDate);
             try {
                 expectedAlbums++;
-                asyncLocalStorage.run({ i, performance: perf_hooks_1.performance }, () => {
-                    perfMarkIfAny("addAlbum-start");
+                asyncLocalStorage.run({ i }, () => {
+                    albumPerfTimings.set(name, perfNow());
                     dependencies_1.albumsService
                         .addAlbumWithMultipleArtists({
                         id: 0, // ignored by service,
@@ -529,8 +535,9 @@ function importAlbums() {
                     }, dbArtistIds)
                         .then(() => {
                         acknowledgedAlbums++;
-                        perfMarkIfAny("addAlbum-end");
-                        perfMeasureIfAny("addAlbum-measure", "addAlbum-start", "addAlbum-end");
+                        const perf = albumPerfTimings.get(name);
+                        perfEnd(albumPerfTimings.get(name), "addAlbum");
+                        albumPerfTimings.delete(name);
                     });
                 });
             }
@@ -594,8 +601,6 @@ async function finish() {
 }
 // https://nodejs.org/api/perf_hooks.html#measuring-the-duration-of-async-operations
 let disconnectPerfIfAny = () => { };
-let perfMarkIfAny = () => { };
-let perfMeasureIfAny = () => { };
 if (MEASURE_PERFORMANCE) {
     // artistIdsToDbIds = performance.timerify(artistIdsToDbIds);
     getRecordingFirstReleaseDate = perf_hooks_1.performance.timerify(getRecordingFirstReleaseDate);
@@ -612,17 +617,5 @@ if (MEASURE_PERFORMANCE) {
         perf_hooks_1.performance.clearMeasures();
     });
     obs.observe({ entryTypes: ["function", "measure"] });
-    const withStoreId = (s) => s + "-" + asyncLocalStorage.getStore()?.i;
-    disconnectPerfIfAny = () => obs.disconnect();
-    perfMarkIfAny = (s) => asyncLocalStorage.getStore()?.performance.mark(withStoreId(s));
-    perfMeasureIfAny = (name, start, end) => {
-        try {
-            asyncLocalStorage.getStore()?.performance.measure(withStoreId(name), withStoreId(start), withStoreId(end));
-        }
-        catch (e) {
-            // spam a lot
-            console.error("failed to measure " + withStoreId(name), e.message);
-        }
-    };
 }
 start();
