@@ -125,6 +125,8 @@ export default class SongController {
         
         
         const respBody = await this.getSongsService.addTag(id, tagId);
+        console.log(respBody);
+        
         // let respBody;
         // if (succeed == null) {
         //     const respBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
@@ -134,4 +136,38 @@ export default class SongController {
 
         res.send(respBody);
     }
+
+    /**
+     * Adds a tag to the specified song.
+     * @param req 
+     * @param res 
+     * @returns 
+     */
+    async getTags(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        //parsing the parameter
+        const id = Number.parseInt(req.params['id']);
+        if (id == null || Number.isNaN(id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+        
+        
+        const respBody = await this.getSongsService.getTags(id);
+        // let respBody;
+        // if (succeed == null) {
+        //     const respBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
+        //     res.status(404).send(respBody);
+        //     return;
+        // }
+
+        res.send(respBody);
+    }
+
 }

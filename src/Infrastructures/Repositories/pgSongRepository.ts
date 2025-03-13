@@ -108,4 +108,27 @@ export class PgSongRepository implements SongRepository {
 
         return ResponseBody.getResponseBodyOk("Tag successfully added to the song.");
     }
+    
+    
+    async selectTags(songId: number) {
+        let results = await this.prisma.tag.findMany({
+            where: {
+                TagLink: {
+                    some: {
+                        idSong: songId
+                    },
+                },
+            },
+        });
+
+        const foundTags = results.map((tag) => {
+            return {
+                id: tag.id,
+                label: tag.label,
+            }
+        })
+
+        return ResponseBody.getResponseBodyOkWithObject(foundTags.length + " tags found.", foundTags);
+    }
+
 }

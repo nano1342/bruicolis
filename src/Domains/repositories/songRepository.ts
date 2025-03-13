@@ -13,4 +13,6 @@ export interface SongRepository {
     insertSong(songToInsertbis: Song, artistd: number) :Promise<Song | ErrorType | null>
     
     insertTag(songId: number, tagId: number) :Promise<ResponseBody>
+    
+    selectTags(songId: number) :Promise<ResponseBody>
 }

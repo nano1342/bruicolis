@@ -1,3 +1,5 @@
+import * as Errors from "../Utils/Errors";
+
 export class ResponseBody {
     
     status: string;
@@ -22,6 +24,10 @@ export class ResponseBody {
 
     public static getResponseBodyFail(message: string, error: object) {
         return new ResponseBody('fail', message, undefined, error);
+    }
+
+    public static getResponseBodyFailDefault() {
+        return new ResponseBody('fail', "Something went wrong", undefined, Errors.getErrorBodyDefault(Errors.ErrorType.SERVER_ERROR));
     }
 
 }
