@@ -7,6 +7,20 @@ const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const dependencies_1 = require("../src/dependencies");
 // import artists csv from file
 const csv_parse_1 = require("csv-parse");
+const perf_hooks_1 = require("perf_hooks");
+// const {
+//     performance,
+//     PerformanceObserver,
+// }: {
+//     performance: Performance;
+//     PerformanceObserver: any;
+// } = require("node:perf_hooks");
+const async_hooks_1 = require("async_hooks");
+// const { AsyncLocalStorage } = require("node:async_hooks");
+/**
+ * needs to be reset for each async operation
+ */
+let asyncLocalStorage = new async_hooks_1.AsyncLocalStorage();
 const fs = require("fs");
 const path = require("path");
 let db;
@@ -25,9 +39,10 @@ const releaseCountryCsv = path.resolve(root, "out_release_country.csv");
 // const mediumToRelease = new Map<number, number[]>();
 // const releaseToReleaseDate = new Map<number, ReleaseDate[]>();
 const MAX_ARTISTS = 10_000;
-const MAX_SONGS = 10_000;
+const MAX_SONGS = 5_000;
 const MAX_MAPPINGS = 200_000;
-const MAX_ALBUMS = 10_000;
+const MAX_ALBUMS = 5_000;
+const MEASURE_PERFORMANCE = true;
 function read(path, callbacks) {
     const stream = fs.createReadStream(path);
     let endOrCloseSent = false; // both events are not mutually exclusive
@@ -58,18 +73,22 @@ function start() {
     db.exec("CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
     importArtists();
 }
-function getTruncatedName(name, maxLength) {
+/**
+ * @satisfies timerify friendly
+ */
+let getTruncatedName = (name, maxLength) => {
     let n = name;
     if (n.length > 255) {
         n = n.substring(0, 255);
         console.warn(`truncated name: ${name}\n\t-->${n}`);
     }
     return n;
-}
+};
 let expectedArtists = 0;
 let acknowledgedArtists = 0;
 function importArtists() {
     console.log("=== importing artists...");
+    asyncLocalStorage = new async_hooks_1.AsyncLocalStorage();
     let i = 0;
     read(artistsCsv, {
         ondata: (r, stream) => {
@@ -86,17 +105,24 @@ function importArtists() {
             const musicbrainzId = parseInt(r[0]);
             try {
                 expectedArtists++;
-                dependencies_1.getArtistsService
-                    .addArtist({
-                    id: 0, // ignored by service,
-                    name,
-                    musicbrainzId,
-                })
-                    .then((artist) => {
-                    if (artist !== null) {
-                        db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(musicbrainzId, artist.id);
-                    }
-                    acknowledgedArtists++;
+                asyncLocalStorage.run({ i, performance: perf_hooks_1.performance }, () => {
+                    perfMarkIfAny("addArtist-start");
+                    console.log("marking addArtist-start" + asyncLocalStorage.getStore()?.i);
+                    dependencies_1.getArtistsService
+                        .addArtist({
+                        id: 0, // ignored by service,
+                        name,
+                        musicbrainzId,
+                    })
+                        .then((artist) => {
+                        if (artist !== null) {
+                            db.prepare("INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)").run(musicbrainzId, artist.id);
+                        }
+                        acknowledgedArtists++;
+                        perfMarkIfAny("addArtist-end");
+                        perfMeasureIfAny("addArtist-measure", "addArtist-start", "addArtist-end");
+                    }).finally(() => {
+                    });
                 });
             }
             catch (e) {
@@ -232,8 +258,10 @@ function buildReleaseToReleaseCountryMappings() {
 // }
 let expectedSongs = 0;
 let acknowledgedSongs = 0;
+let songPerfTimings = new Map();
 function importSongs() {
     console.log("=== importing songs...");
+    asyncLocalStorage = new async_hooks_1.AsyncLocalStorage();
     let i = 0;
     read(songsCsv, {
         ondata: (r, stream) => {
@@ -270,14 +298,24 @@ function importSongs() {
             const date = convertToDate(releaseDate);
             try {
                 expectedSongs++;
-                dependencies_1.getSongsService
-                    .addSongWithMultipleArtists({
-                    id: 0, // ignored by service,
-                    name,
-                    release_date: date,
-                }, dbArtistIds)
-                    .then(() => {
-                    acknowledgedSongs++;
+                asyncLocalStorage.run({ i, performance: perf_hooks_1.performance }, async () => {
+                    songPerfTimings.set(name, { start: perf_hooks_1.performance.now(), end: 0 });
+                    perfMarkIfAny("addSong-start");
+                    console.log("marking addSong-start" + asyncLocalStorage.getStore()?.i);
+                    dependencies_1.getSongsService
+                        .addSongWithMultipleArtists({
+                        id: 0, // ignored by service,
+                        name,
+                        release_date: date,
+                    }, dbArtistIds)
+                        .then(() => {
+                        acknowledgedSongs++;
+                        perfMarkIfAny("addSong-end");
+                        perfMeasureIfAny("addSong-measure", "addSong-start", "addSong-end");
+                        songPerfTimings.get(name).end = perf_hooks_1.performance.now();
+                        const t = songPerfTimings.get(name);
+                        console.log("song timing", asyncLocalStorage.getStore()?.i, t.end - t.start);
+                    });
                 });
             }
             catch (e) {
@@ -343,7 +381,15 @@ function importSongs() {
 //         })
 //     }
 // }
-function getRecordingFirstReleaseDate(recordingId) {
+const getRecordingFirstReleaseDateCache = new Map();
+const getReleaseFirstReleaseDateCache = new Map();
+/**
+ * @satisfies timerify friendly
+ */
+let getRecordingFirstReleaseDate = (recordingId) => {
+    if (getRecordingFirstReleaseDateCache.has(recordingId)) {
+        return getRecordingFirstReleaseDateCache.get(recordingId);
+    }
     const releaseDates = [];
     const stmt = db.prepare("SELECT year,month,day FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?");
     for (const row of stmt.iterate(recordingId)) {
@@ -354,14 +400,23 @@ function getRecordingFirstReleaseDate(recordingId) {
             day: r.day,
         });
     }
+    let date = null;
     if (releaseDates.length === 0) {
-        return null;
+        date = null;
     }
     else {
-        return getMinimumDate(releaseDates);
+        date = getMinimumDate(releaseDates);
     }
-}
-function getReleaseFirstReleaseDate(releaseId) {
+    getRecordingFirstReleaseDateCache.set(recordingId, date);
+    return date;
+};
+/**
+ * @satisfies timerify friendly
+ */
+let getReleaseFirstReleaseDate = (releaseId) => {
+    if (getReleaseFirstReleaseDateCache.has(releaseId)) {
+        return getReleaseFirstReleaseDateCache.get(releaseId);
+    }
     const releaseDates = [];
     const stmt = db.prepare("SELECT year,month,day FROM release_to_release_date WHERE release = ?");
     for (const row of stmt.iterate(releaseId)) {
@@ -372,13 +427,16 @@ function getReleaseFirstReleaseDate(releaseId) {
             day: r.day,
         });
     }
+    let date = null;
     if (releaseDates.length === 0) {
-        return null;
+        date = null;
     }
     else {
-        return getMinimumDate(releaseDates);
+        date = getMinimumDate(releaseDates);
     }
-}
+    getReleaseFirstReleaseDateCache.set(releaseId, date);
+    return date;
+};
 function getMinimumDate(releaseDates) {
     return releaseDates.reduce((acc, current) => {
         // find the earliest date
@@ -423,8 +481,8 @@ let acknowledgedAlbums = 0;
  * @see https://musicbrainz.org/doc/Medium
  */
 function importAlbums() {
-    // finish();
     console.log("=== importing albums...");
+    asyncLocalStorage = new async_hooks_1.AsyncLocalStorage();
     let i = 0;
     read(releaseCsv, {
         ondata: (r, stream) => {
@@ -461,14 +519,19 @@ function importAlbums() {
             const date = convertToDate(releaseDate);
             try {
                 expectedAlbums++;
-                dependencies_1.albumsService
-                    .addAlbumWithMultipleArtists({
-                    id: 0, // ignored by service,
-                    name,
-                    release_date: date,
-                }, dbArtistIds)
-                    .then(() => {
-                    acknowledgedAlbums++;
+                asyncLocalStorage.run({ i, performance: perf_hooks_1.performance }, () => {
+                    perfMarkIfAny("addAlbum-start");
+                    dependencies_1.albumsService
+                        .addAlbumWithMultipleArtists({
+                        id: 0, // ignored by service,
+                        name,
+                        release_date: date,
+                    }, dbArtistIds)
+                        .then(() => {
+                        acknowledgedAlbums++;
+                        perfMarkIfAny("addAlbum-end");
+                        perfMeasureIfAny("addAlbum-measure", "addAlbum-start", "addAlbum-end");
+                    });
                 });
             }
             catch (e) {
@@ -490,7 +553,10 @@ function importAlbums() {
     // let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
     // const artistCredit = parseInt(r[3]);
 }
-function convertToDate(releaseDate) {
+/**
+ * @satisfies timerify friendly
+ */
+let convertToDate = (releaseDate) => {
     const date = new Date();
     if (releaseDate !== null) {
         date.setUTCFullYear(Math.max(1970, releaseDate.year));
@@ -498,9 +564,12 @@ function convertToDate(releaseDate) {
         date.setUTCDate(releaseDate.day);
     }
     return date;
-}
+};
 const artistIdsToDbIdsCache = new Map();
-function artistIdsToDbIds(artistIds) {
+/**
+ * @satisfies timerify friendly
+ */
+let artistIdsToDbIds = (artistIds) => {
     let dbArtistIds = [];
     for (const id of artistIds) {
         let dbArtistId;
@@ -517,8 +586,43 @@ function artistIdsToDbIds(artistIds) {
         }
     }
     return dbArtistIds;
-}
+};
 async function finish() {
+    disconnectPerfIfAny();
+    db.close();
     console.log("=== done ===");
+}
+// https://nodejs.org/api/perf_hooks.html#measuring-the-duration-of-async-operations
+let disconnectPerfIfAny = () => { };
+let perfMarkIfAny = () => { };
+let perfMeasureIfAny = () => { };
+if (MEASURE_PERFORMANCE) {
+    // artistIdsToDbIds = performance.timerify(artistIdsToDbIds);
+    getRecordingFirstReleaseDate = perf_hooks_1.performance.timerify(getRecordingFirstReleaseDate);
+    getReleaseFirstReleaseDate = perf_hooks_1.performance.timerify(getReleaseFirstReleaseDate);
+    // convertToDate = performance.timerify(convertToDate);
+    perf_hooks_1.performance.mark("start");
+    // Activate the observer
+    const obs = new perf_hooks_1.PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry) => {
+            console.log(`${entry.name}()`, entry.duration);
+        });
+        perf_hooks_1.performance.clearMarks();
+        perf_hooks_1.performance.clearMeasures();
+    });
+    obs.observe({ entryTypes: ["function", "measure"] });
+    const withStoreId = (s) => s + "-" + asyncLocalStorage.getStore()?.i;
+    disconnectPerfIfAny = () => obs.disconnect();
+    perfMarkIfAny = (s) => asyncLocalStorage.getStore()?.performance.mark(withStoreId(s));
+    perfMeasureIfAny = (name, start, end) => {
+        try {
+            asyncLocalStorage.getStore()?.performance.measure(withStoreId(name), withStoreId(start), withStoreId(end));
+        }
+        catch (e) {
+            // spam a lot
+            console.error("failed to measure " + withStoreId(name), e.message);
+        }
+    };
 }
 start();

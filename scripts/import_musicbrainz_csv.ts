@@ -1,5 +1,9 @@
 import Database from "better-sqlite3";
-import { getArtistsService, getSongsService, albumsService } from "../src/dependencies";
+import {
+    getArtistsService,
+    getSongsService,
+    albumsService,
+} from "../src/dependencies";
 import { Artist } from "../src/Domains/Models/Artist";
 
 // import artists csv from file
@@ -7,6 +11,25 @@ import { parse } from "csv-parse";
 import { release } from "os";
 import { ReadStream } from "fs";
 import { resolve } from "path";
+
+import { performance, PerformanceObserver } from "perf_hooks";
+// const {
+//     performance,
+//     PerformanceObserver,
+// }: {
+//     performance: Performance;
+//     PerformanceObserver: any;
+// } = require("node:perf_hooks");
+import { AsyncLocalStorage } from "async_hooks";
+// const { AsyncLocalStorage } = require("node:async_hooks");
+/**
+ * needs to be reset for each async operation
+ */
+let asyncLocalStorage: AsyncLocalStorage<{
+    i: number;
+    performance: typeof performance;
+}> = new AsyncLocalStorage();
+
 const fs = require("fs");
 const path = require("path");
 let db: Database.Database;
@@ -33,10 +56,11 @@ interface ReleaseDate {
 // const mediumToRelease = new Map<number, number[]>();
 // const releaseToReleaseDate = new Map<number, ReleaseDate[]>();
 
-const MAX_ARTISTS = 50_000;
+const MAX_ARTISTS = 10_000;
 const MAX_SONGS = 5_000;
 const MAX_MAPPINGS = 200_000;
 const MAX_ALBUMS = 5_000;
+const MEASURE_PERFORMANCE = true;
 
 function read(
     path: unknown,
@@ -86,19 +110,23 @@ function start() {
     importArtists();
 }
 
-function getTruncatedName(name: string, maxLength: number) {
+/**
+ * @satisfies timerify friendly
+ */
+let getTruncatedName = (name: string, maxLength: number) => {
     let n = name;
     if (n.length > 255) {
         n = n.substring(0, 255);
         console.warn(`truncated name: ${name}\n\t-->${n}`);
     }
     return n;
-}
+};
 
 let expectedArtists = 0;
 let acknowledgedArtists = 0;
 function importArtists() {
     console.log("=== importing artists...");
+    asyncLocalStorage = new AsyncLocalStorage();
     let i = 0;
     read(artistsCsv, {
         ondata: (r, stream) => {
@@ -116,20 +144,34 @@ function importArtists() {
             const musicbrainzId = parseInt(r[0]);
             try {
                 expectedArtists++;
-                getArtistsService
-                    .addArtist({
-                        id: 0, // ignored by service,
-                        name,
-                        musicbrainzId,
-                    })
-                    .then((artist) => {
-                        if (artist !== null) {
-                            db.prepare(
-                                "INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)"
-                            ).run(musicbrainzId, artist.id);
-                        }
-                        acknowledgedArtists++;
-                    });
+                asyncLocalStorage.run({ i, performance }, () => {
+                    perfMarkIfAny("addArtist-start");
+                    console.log(
+                        "marking addArtist-start" +
+                            asyncLocalStorage.getStore()?.i
+                    );
+                    getArtistsService
+                        .addArtist({
+                            id: 0, // ignored by service,
+                            name,
+                            musicbrainzId,
+                        })
+                        .then((artist) => {
+                            if (artist !== null) {
+                                db.prepare(
+                                    "INSERT INTO artist_musicbrainz_to_db_id VALUES (?, ?)"
+                                ).run(musicbrainzId, artist.id);
+                            }
+                            acknowledgedArtists++;
+                            perfMarkIfAny("addArtist-end");
+                            perfMeasureIfAny(
+                                "addArtist-measure",
+                                "addArtist-start",
+                                "addArtist-end"
+                            );
+                        })
+                        .finally(() => {});
+                });
             } catch (e) {
                 expectedArtists--;
                 console.error("failed to import artist", r, e);
@@ -292,9 +334,10 @@ function buildReleaseToReleaseCountryMappings() {
 
 let expectedSongs = 0;
 let acknowledgedSongs = 0;
-
+let songPerfTimings = new Map<string, { start: number; end: number }>();
 function importSongs() {
     console.log("=== importing songs...");
+    asyncLocalStorage = new AsyncLocalStorage();
     let i = 0;
     read(songsCsv, {
         ondata: (r, stream) => {
@@ -334,18 +377,42 @@ function importSongs() {
 
             try {
                 expectedSongs++;
-                getSongsService
-                    .addSongWithMultipleArtists(
-                        {
-                            id: 0, // ignored by service,
-                            name,
-                            release_date: date,
-                        },
-                        dbArtistIds
-                    )
-                    .then(() => {
-                        acknowledgedSongs++;
+                asyncLocalStorage.run({ i, performance }, async () => {
+                    songPerfTimings.set(name, {
+                        start: performance.now(),
+                        end: 0,
                     });
+                    perfMarkIfAny("addSong-start");
+                    console.log(
+                        "marking addSong-start" +
+                            asyncLocalStorage.getStore()?.i
+                    );
+                    getSongsService
+                        .addSongWithMultipleArtists(
+                            {
+                                id: 0, // ignored by service,
+                                name,
+                                release_date: date,
+                            },
+                            dbArtistIds
+                        )
+                        .then(() => {
+                            acknowledgedSongs++;
+                            perfMarkIfAny("addSong-end");
+                            perfMeasureIfAny(
+                                "addSong-measure",
+                                "addSong-start",
+                                "addSong-end"
+                            );
+                            songPerfTimings.get(name)!.end = performance.now();
+                            const t = songPerfTimings.get(name)!;
+                            console.log(
+                                "song timing",
+                                asyncLocalStorage.getStore()?.i,
+                                t.end - t.start
+                            );
+                        });
+                });
             } catch (e) {
                 console.error("failed to import song", r, e);
             }
@@ -415,7 +482,17 @@ function importSongs() {
 //     }
 // }
 
-function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
+const getRecordingFirstReleaseDateCache = new Map<number, ReleaseDate | null>();
+const getReleaseFirstReleaseDateCache = new Map<number, ReleaseDate | null>();
+/**
+ * @satisfies timerify friendly
+ */
+let getRecordingFirstReleaseDate = (
+    recordingId: number
+): ReleaseDate | null => {
+    if (getRecordingFirstReleaseDateCache.has(recordingId)) {
+        return getRecordingFirstReleaseDateCache.get(recordingId)!;
+    }
     const releaseDates: ReleaseDate[] = [];
     const stmt = db.prepare(
         "SELECT year,month,day FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?"
@@ -429,14 +506,23 @@ function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
         });
     }
 
+    let date: ReleaseDate | null = null;
     if (releaseDates.length === 0) {
-        return null;
+        date = null;
     } else {
-        return getMinimumDate(releaseDates);
+        date = getMinimumDate(releaseDates);
     }
-}
+    getRecordingFirstReleaseDateCache.set(recordingId, date);
+    return date;
+};
 
-function getReleaseFirstReleaseDate(releaseId: number): ReleaseDate | null {
+/**
+ * @satisfies timerify friendly
+ */
+let getReleaseFirstReleaseDate = (releaseId: number): ReleaseDate | null => {
+    if (getReleaseFirstReleaseDateCache.has(releaseId)) {
+        return getReleaseFirstReleaseDateCache.get(releaseId)!;
+    }
     const releaseDates: ReleaseDate[] = [];
     const stmt = db.prepare(
         "SELECT year,month,day FROM release_to_release_date WHERE release = ?"
@@ -450,12 +536,15 @@ function getReleaseFirstReleaseDate(releaseId: number): ReleaseDate | null {
         });
     }
 
+    let date: ReleaseDate | null = null;
     if (releaseDates.length === 0) {
-        return null;
+        date = null;
     } else {
-        return getMinimumDate(releaseDates);
+        date = getMinimumDate(releaseDates);
     }
-}
+    getReleaseFirstReleaseDateCache.set(releaseId, date);
+    return date;
+};
 
 function getMinimumDate(releaseDates: ReleaseDate[]): ReleaseDate {
     return releaseDates.reduce((acc, current) => {
@@ -503,8 +592,8 @@ let acknowledgedAlbums = 0;
  * @see https://musicbrainz.org/doc/Medium
  */
 function importAlbums() {
-    // finish();
     console.log("=== importing albums...");
+    asyncLocalStorage = new AsyncLocalStorage();
     let i = 0;
 
     read(releaseCsv, {
@@ -545,18 +634,27 @@ function importAlbums() {
 
             try {
                 expectedAlbums++;
-                albumsService
-                    .addAlbumWithMultipleArtists(
-                        {
-                            id: 0, // ignored by service,
-                            name,
-                            release_date: date,
-                        },
-                        dbArtistIds
-                    )
-                    .then(() => {
-                        acknowledgedAlbums++;
-                    });
+                asyncLocalStorage.run({ i, performance }, () => {
+                    perfMarkIfAny("addAlbum-start");
+                    albumsService
+                        .addAlbumWithMultipleArtists(
+                            {
+                                id: 0, // ignored by service,
+                                name,
+                                release_date: date,
+                            },
+                            dbArtistIds
+                        )
+                        .then(() => {
+                            acknowledgedAlbums++;
+                            perfMarkIfAny("addAlbum-end");
+                            perfMeasureIfAny(
+                                "addAlbum-measure",
+                                "addAlbum-start",
+                                "addAlbum-end"
+                            );
+                        });
+                });
             } catch (e) {
                 console.error("failed to import album", r, e);
             }
@@ -579,7 +677,10 @@ function importAlbums() {
     // const artistCredit = parseInt(r[3]);
 }
 
-function convertToDate(releaseDate: ReleaseDate | null): Date {
+/**
+ * @satisfies timerify friendly
+ */
+let convertToDate = (releaseDate: ReleaseDate | null): Date => {
     const date = new Date();
     if (releaseDate !== null) {
         date.setUTCFullYear(Math.max(1970, releaseDate.year));
@@ -587,10 +688,13 @@ function convertToDate(releaseDate: ReleaseDate | null): Date {
         date.setUTCDate(releaseDate.day);
     }
     return date;
-}
+};
 
 const artistIdsToDbIdsCache = new Map<number, number | undefined>();
-function artistIdsToDbIds(artistIds: number[]): number[] {
+/**
+ * @satisfies timerify friendly
+ */
+let artistIdsToDbIds = (artistIds: number[]): number[] => {
     let dbArtistIds: number[] = [];
     for (const id of artistIds) {
         let dbArtistId: number | undefined;
@@ -604,13 +708,71 @@ function artistIdsToDbIds(artistIds: number[]): number[] {
         if (dbArtistId !== undefined) {
             dbArtistIds.push(dbArtistId);
         }
-
     }
     return dbArtistIds;
-}
+};
 
 async function finish() {
+    disconnectPerfIfAny();
+    db.close();
     console.log("=== done ===");
+}
+
+// https://nodejs.org/api/perf_hooks.html#measuring-the-duration-of-async-operations
+let disconnectPerfIfAny = () => {};
+let perfMarkIfAny: (s: string) => void = () => {};
+let perfMeasureIfAny: (
+    m: string,
+    start: string,
+    end: string
+) => void = () => {};
+
+if (MEASURE_PERFORMANCE) {
+    // artistIdsToDbIds = performance.timerify(artistIdsToDbIds);
+    getRecordingFirstReleaseDate = performance.timerify(
+        getRecordingFirstReleaseDate
+    );
+    getReleaseFirstReleaseDate = performance.timerify(
+        getReleaseFirstReleaseDate
+    );
+    // convertToDate = performance.timerify(convertToDate);
+    performance.mark("start");
+
+    // Activate the observer
+    const obs: PerformanceObserver = new PerformanceObserver(
+        (list: PerformanceObserverEntryList) => {
+            const entries = list.getEntries();
+            entries.forEach((entry) => {
+                console.log(`${entry.name}()`, entry.duration);
+            });
+            performance.clearMarks();
+            performance.clearMeasures();
+        }
+    );
+    obs.observe({ entryTypes: ["function", "measure"] });
+
+    const withStoreId = (s: string) =>
+        s + "-" + asyncLocalStorage.getStore()?.i;
+    disconnectPerfIfAny = () => obs.disconnect();
+    perfMarkIfAny = (s: string) =>
+        asyncLocalStorage.getStore()?.performance.mark(withStoreId(s));
+    perfMeasureIfAny = (name: string, start: string, end: string) => {
+        try {
+            asyncLocalStorage
+                .getStore()
+                ?.performance.measure(
+                    withStoreId(name),
+                    withStoreId(start),
+                    withStoreId(end)
+                );
+        } catch (e) {
+            // spam a lot
+            console.error(
+                "failed to measure " + withStoreId(name),
+                (e as Error).message
+            );
+        }
+    };
 }
 
 start();
