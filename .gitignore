@@ -1,3 +1,9 @@
 node_modules
 # Keep environment variables out of version control
 .env
+musicbrainz_csv
+src/**/*.js
+script/**/*.js
+musicbrainzMapping.db
+# musicbrainzMapping.db-journal
+musicbrainzMapping.db-*

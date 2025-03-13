@@ -31,6 +31,10 @@ export class GetArtistsService {
         return this.artistRepository.selectOneById(artistId);
     }
 
+    findArtistIdByMusicBrainzId(artistId: number) {
+        return this.artistRepository.findArtistByMusicBrainzId(artistId);
+    }
+
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     addArtist(artistToInsert: Artist) {
         //vérifications préalables avant requête

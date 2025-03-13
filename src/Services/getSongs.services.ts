@@ -37,5 +37,16 @@ export class GetSongsService {
 
         return this.songRepository.insertSong(songToInsert, artistd);
     }
+
+    async addSongWithMultipleArtists(songToInsert: Song, artistIds: number[]) {
+        if (artistIds.length < 1) {
+            throw new Errors.IncorrectParameterError("at least one artist ID is required.");
+        }
+        let songs: (Song | Errors.ErrorType | null)[] = [];
+        for (const id of artistIds) {
+            songs.push(await this.addSong(songToInsert, id));
+        }
+        return songs;
+    }
     
 }

@@ -7,6 +7,8 @@ export interface ArtistRepository {
     selectPage(skip: number, take: number) :Promise<Artist[]>
     
     selectOneById(artistId: number) :Promise<Artist | null>
+
+    findArtistByMusicBrainzId(artistId: number) :Promise<Artist | null>
     
     insertArtist(artistToInsert: Artist) :Promise<Artist | null>
 }

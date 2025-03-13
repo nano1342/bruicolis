@@ -60,7 +60,7 @@ export class PgSongRepository implements SongRepository {
         let newSong: Song = await this.prisma.song.create({
             data: {
               name: songToInsert.name,
-              releaseDate: new Date(songToInsert.release_date).toISOString()
+              releaseDate: songToInsert.release_date.toISOString()
             }
         });
 
