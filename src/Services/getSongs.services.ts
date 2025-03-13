@@ -11,8 +11,8 @@ export class GetSongsService {
         
     }
 
-    getAll() {
-        return this.songRepository.selectAll();
+    getAll(filters: object) {
+        return this.songRepository.selectAll(filters);
     }
 
     getPage(page: number, limit: number) {

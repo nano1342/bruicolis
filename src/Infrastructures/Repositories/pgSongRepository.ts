@@ -3,6 +3,7 @@ import { Song as SongModel } from "../../Domains/Models/Song";
 import { SongRepository } from "../../Domains/repositories/songRepository";
 import * as Errors from "../../Utils/Errors";
 import { ResponseBody } from "../../Utils/ResponseBody";
+import * as util from "util"
 
 //TODO ajouter objet de lien SongArtistLink
 export class PgSongRepository implements SongRepository {
@@ -11,8 +12,48 @@ export class PgSongRepository implements SongRepository {
         
     }
 
-    async selectAll() {
-        let songs = await this.prisma.song.findMany();
+    async selectAll(filters: object) {
+        let songs;
+        if (filters != null) {
+            let sqlOptions: { [key: string]: any } = {
+                where: {
+                    AND: []
+                }
+            };
+
+            if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
+                const tags = filters['tagsOR'] as [];
+                sqlOptions.where.AND.push(
+                    {
+                        TagLink: {
+                            some: {
+                                idTag: { in: tags }
+                            }
+                        }
+                    }
+                );
+            }
+
+            if ('tagsAND' in filters && (filters['tagsAND'] as []).length > 0) {
+                const tags = filters['tagsAND'] as [];
+                let obj: { [key: string]: any } = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } })
+                }
+
+                sqlOptions.where.AND.push(obj);
+            }
+
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+            }
+
+            console.log(util.inspect(sqlOptions, {showHidden: false, depth: null, colors: true}))
+            songs = await this.prisma.song.findMany(sqlOptions as object);
+
+        } else {
+            songs = await this.prisma.song.findMany();
+        }
         
         return songs.map((song) => {
             return {

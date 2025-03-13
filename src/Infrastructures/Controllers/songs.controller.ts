@@ -19,11 +19,11 @@ export default class SongController {
     async getSongs(req: Request, res: Response) {
         let result;
         console.log(req.body);
-        
+
         if (req.body.page != null && req.body.limit != null) {
             result = await this.getSongsService.getPage(req.body.page, req.body.limit);
         } else {
-            result = await this.getSongsService.getAll();
+            result = await this.getSongsService.getAll(req.body.filters);
         }
 
         if (result == Errors.ErrorType.INCORRECT_PARAMETER) {
