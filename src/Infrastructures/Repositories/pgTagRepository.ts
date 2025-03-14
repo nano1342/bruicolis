@@ -2,6 +2,7 @@ import { Tag, PrismaClient, TagLink } from "@prisma/client";
 import { Tag as TagModel } from "../../Domains/Models/Tag";
 import { TagRepository } from "../../Domains/repositories/tagRepository";
 import * as Errors from "../../Utils/Errors";
+import { Artist } from "../../Domains/Models/Artist";
 
 export class PgTagRepository implements TagRepository {
     
@@ -72,7 +73,7 @@ export class PgTagRepository implements TagRepository {
         })
     }
 
-    async selectTagArtists(tagId: number) {
+    async selectTagArtists(tagId: number):Promise<Artist[]>  {
         let artists = await this.prisma.artist.findMany({
             where: {
             TagLink: {
@@ -87,6 +88,7 @@ export class PgTagRepository implements TagRepository {
             return {
                 id: artist.id,
                 name: artist.name,
+                musicbrainzId: artist.musicbrainzId,
             }
         })
     }
