@@ -174,19 +174,19 @@ export default class ArtistController {
             return;
         }
         
-            if (req.body['tag_id'] == null) {
-                const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_BODY_PARAMETER);
-                res.status(422).send(errorBody);
-                return;
-            }
-    
-            const tagId = Number.parseInt(req.body['tag_id']);
-            
-            if (tagId == null || Number.isNaN(tagId)) {
-                const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER);
-                res.status(406).send(errorBody);
-                return;
-            }
+        if (req.body['tag_id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_BODY_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        const tagId = Number.parseInt(req.body['tag_id']);
+        
+        if (tagId == null || Number.isNaN(tagId)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
 
         const albumList = await this.getArtistsService.addTag(artist_id, tagId);
         res.send(albumList);

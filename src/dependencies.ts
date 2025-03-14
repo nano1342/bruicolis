@@ -18,11 +18,6 @@ import { TagsService } from "./Services/tags.services";
 
 const prisma = new PrismaClient();
 
-// Albums
-export const albumRepository = new PgAlbumRepository(prisma);
-export const albumsService = new AlbumsService(albumRepository);
-export const albumController = new AlbumController(albumsService);
-
 // Tags
 export const tagRepository = new PgTagRepository(prisma);
 export const tagService = new TagsService(tagRepository);
@@ -37,3 +32,8 @@ export const songController = new SongController(getSongsService);
 export const artistRepository = new PgArtistRepository(prisma);
 export const getArtistsService = new GetArtistsService(artistRepository, tagRepository);
 export const artistController = new ArtistController(getArtistsService);
+
+// Albums
+export const albumRepository = new PgAlbumRepository(prisma);
+export const albumsService = new AlbumsService(albumRepository, tagRepository);
+export const albumController = new AlbumController(albumsService);
