@@ -5,25 +5,14 @@ import {
     albumsService,
     tagService
 } from "../src/dependencies";
-import { Artist } from "../src/Domains/Models/Artist";
 
 // import artists csv from file
 import { parse } from "csv-parse";
-import { release } from "os";
 import { ReadStream } from "fs";
-import { resolve } from "path";
 
 import { performance, PerformanceObserver } from "perf_hooks";
-// const {
-//     performance,
-//     PerformanceObserver,
-// }: {
-//     performance: Performance;
-//     PerformanceObserver: any;
-// } = require("node:perf_hooks");
 import { AsyncLocalStorage } from "async_hooks";
 import { TagsService } from "../src/Services/tags.services";
-// const { AsyncLocalStorage } = require("node:async_hooks");
 /**
  * needs to be reset for each async operation
  */
@@ -71,12 +60,6 @@ interface ReleaseDate {
     day: number;
 }
 
-// not enough memory, using sqlite
-// const artistCreditToArtist = new Map<number, number[]>();
-// const recordingToMedium = new Map<number, number[]>();
-// const mediumToRelease = new Map<number, number[]>();
-// const releaseToReleaseDate = new Map<number, ReleaseDate[]>();
-
 const MAX_ARTISTS = 10_000;
 const MAX_SONGS = 5_000;
 const MAX_MAPPINGS = 200_000;
@@ -113,6 +96,8 @@ function start() {
     }
     db = new Database("musicbrainzMapping.db");
     db.pragma("journal_mode = WAL");
+
+    // not enough memory in nodeJS with Maps, using sqlite instead
 
     // setup maps
     db.exec(
@@ -233,7 +218,6 @@ function buildArtistCreditMappings() {
 
             const artistCredit = parseInt(r[0]);
             const artist = parseInt(r[2]);
-            // pushToArrayOrInitInMap(artistCreditToArtist, artistCredit, artist);
             db.prepare("INSERT INTO artist_credit_to_artist VALUES (?, ?)").run(
                 artistCredit,
                 artist
@@ -263,7 +247,6 @@ function buildTrackMappings() {
 
             const recording = parseInt(r[2]);
             const medium = parseInt(r[3]);
-            // pushToArrayOrInitInMap(recordingToMedium, recording, medium);
             db.prepare("INSERT INTO recording_to_medium VALUES (?, ?)").run(
                 recording,
                 medium
@@ -293,7 +276,6 @@ function buildMediumToReleaseMappings() {
 
             const medium = parseInt(r[0]);
             const release = parseInt(r[1]);
-            // pushToArrayOrInitInMap(mediumToRelease, medium, release);
             db.prepare("INSERT INTO medium_to_release VALUES (?, ?)").run(
                 medium,
                 release
@@ -327,7 +309,6 @@ function buildReleaseToReleaseCountryMappings() {
                 month: parseInt(r[3]),
                 day: parseInt(r[4]),
             };
-            // pushToArrayOrInitInMap(releaseToReleaseDate, release, releaseDate);
             db.prepare(
                 "INSERT INTO release_to_release_date VALUES (?, ?)"
             ).run(
@@ -341,15 +322,6 @@ function buildReleaseToReleaseCountryMappings() {
         },
     });
 }
-
-// function pushToArrayOrInitInMap<K, V>(map: Map<K, V[]>, key: K, value: V) {
-//     if (!map.has(key)) {
-//         map.set(key, []);
-//     }
-//     let array = map.get(key)!;
-//     array.push(value);
-//     map.set(key, array);
-// }
 
 let expectedSongs = 0;
 let acknowledgedSongs = 0;
@@ -391,9 +363,7 @@ function importSongs() {
                 return;
             }
             const recordingId = parseInt(r[0]);
-            // const releaseDate = getRecordingFirstReleaseDate(recordingId);
             const date = getRecordingFirstReleaseDate(recordingId);
-            // const date = convertToDate(releaseDate);
 
             try {
                 expectedSongs++;
@@ -443,56 +413,6 @@ function importSongs() {
     });
 }
 
-// function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
-//     const medium = recordingToMedium.get(recordingId);
-//     if (medium === undefined || medium.length === 0) {
-//         return null;
-//     }
-
-//     let releases: number[] = [];
-//     for (const m of medium) {
-//         const mediumReleases = mediumToRelease.get(m);
-//         if (mediumReleases !== undefined) {
-//             releases.concat(mediumReleases);
-//         }
-//     }
-//     if (releases.length === 0) {
-//         return null;
-//     }
-
-//     let releaseDates: ReleaseDate[] = [];
-//     for (const r of releases) {
-//         const rDates = releaseToReleaseDate.get(r);
-//         if (rDates !== undefined) {
-//             releaseDates.concat(rDates);
-//         }
-//     }
-//     if (releaseDates.length === 0) {
-//         return null;
-//     } else {
-//         return releaseDates.reduce((acc, current) => {
-//             // find the earliest date
-//             if (acc.year < current.year) {
-//                 return acc;
-//             } else if (acc.year > current.year) {
-//                 return current;
-//             } else {
-//                 if (acc.month < current.month) {
-//                     return acc;
-//                 } else if (acc.month > current.month) {
-//                     return current;
-//                 } else {
-//                     if (acc.day < current.day) {
-//                         return acc;
-//                     } else {
-//                         return current;
-//                     }
-//                 }
-//             }
-//         })
-//     }
-// }
-
 const getRecordingFirstReleaseDateCache = new Map<number, Date | null>();
 const getReleaseFirstReleaseDateCache = new Map<number, Date | null>();
 /**
@@ -504,25 +424,11 @@ let getRecordingFirstReleaseDate = (
     if (getRecordingFirstReleaseDateCache.has(recordingId)) {
         return getRecordingFirstReleaseDateCache.get(recordingId)!;
     }
-    // const releaseDates: ReleaseDate[] = [];
     const stmt = db.prepare(
         "SELECT MIN(date) FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?"
     );
-    // for (const row of stmt.iterate(recordingId)) {
-    //     const r = row as { year: number; month: number; day: number };
-    //     releaseDates.push({
-    //         year: r.year,
-    //         month: r.month,
-    //         day: r.day,
-    //     });
-    // }
 
     let date: Date | null = null;
-    // if (releaseDates.length === 0) {
-    //     date = null;
-    // } else {
-    //     date = getMinimumDate(releaseDates);
-    // }
     const result = stmt.get(recordingId) as { "MIN(date)": string } | undefined;
     if (result === undefined) {
         date = null;
@@ -541,26 +447,11 @@ let getReleaseFirstReleaseDate = (releaseId: number): Date | null => {
     if (getReleaseFirstReleaseDateCache.has(releaseId)) {
         return getReleaseFirstReleaseDateCache.get(releaseId)!;
     }
-    // const releaseDates: ReleaseDate[] = [];
     const stmt = db.prepare(
         "SELECT MIN(date) FROM release_to_release_date WHERE release = ?"
     );
-    // for (const row of stmt.iterate(releaseId)) {
-    //     const r = row as { year: number; month: number; day: number };
-    //     releaseDates.push({
-    //         year: r.year,
-    //         month: r.month,
-    //         day: r.day,
-    //     });
-    // }
 
     let date: Date | null = null;
-    // let date: ReleaseDate | null = null;
-    // if (releaseDates.length === 0) {
-    //     date = null;
-    // } else {
-    //     date = getMinimumDate(releaseDates);
-    // }
     const result = stmt.get(releaseId) as { "MIN(date)": string } | undefined;
     if (result === undefined) {
         date = null;
@@ -570,29 +461,6 @@ let getReleaseFirstReleaseDate = (releaseId: number): Date | null => {
     getReleaseFirstReleaseDateCache.set(releaseId, date);
     return date;
 };
-
-function getMinimumDate(releaseDates: ReleaseDate[]): ReleaseDate {
-    return releaseDates.reduce((acc, current) => {
-        // find the earliest date
-        if (acc.year < current.year) {
-            return acc;
-        } else if (acc.year > current.year) {
-            return current;
-        } else {
-            if (acc.month < current.month) {
-                return acc;
-            } else if (acc.month > current.month) {
-                return current;
-            } else {
-                if (acc.day < current.day) {
-                    return acc;
-                } else {
-                    return current;
-                }
-            }
-        }
-    });
-}
 
 function findArtistIdByMusicBrainzId(id: number): { id: number } | undefined {
     return db
@@ -655,8 +523,6 @@ function importAlbums() {
                 return;
             }
             const recordingId = parseInt(r[0]);
-            // const releaseDate = getReleaseFirstReleaseDate(recordingId);
-            // const date = convertToDate(releaseDate);
             const date = getReleaseFirstReleaseDate(recordingId);
 
             try {
@@ -700,9 +566,6 @@ function importAlbums() {
             }, 1000);
         },
     });
-    // // import album ===
-    // let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
-    // const artistCredit = parseInt(r[3]);
 }
 
 /**
