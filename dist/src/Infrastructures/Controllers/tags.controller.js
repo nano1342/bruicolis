@@ -38,22 +38,22 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const Errors = __importStar(require("../../Utils/Errors"));
 const joi_1 = __importDefault(require("joi"));
-class ArtistController {
-    getArtistsService;
-    reqBodyFormatArtistPost = joi_1.default.object({
-        name: joi_1.default.string().required(),
+class TagController {
+    getTagsService;
+    reqBodyFormatTagPost = joi_1.default.object({
+        label: joi_1.default.string().required(),
     });
-    constructor(getArtistsService) {
-        this.getArtistsService = getArtistsService;
+    constructor(getTagsService) {
+        this.getTagsService = getTagsService;
     }
-    async getArtists(req, res) {
+    async getTags(req, res) {
         let result;
         console.log(req.body);
         if (req.body.page != null && req.body.limit != null) {
-            result = await this.getArtistsService.getPage(req.body.page, req.body.limit);
+            result = await this.getTagsService.getPage(req.body.page, req.body.limit);
         }
         else {
-            result = await this.getArtistsService.getAll();
+            result = await this.getTagsService.getAll();
         }
         if (result == Errors.ErrorType.INCORRECT_PARAMETER) {
             res.status(400).send(Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER));
@@ -61,23 +61,21 @@ class ArtistController {
         }
         res.send(result);
     }
-    async addArtist(req, res) {
-        const { error, value } = this.reqBodyFormatArtistPost.validate(req.body);
+    async addTag(req, res) {
+        const { error, value } = this.reqBodyFormatTagPost.validate(req.body);
         if (error) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.WRONG_BODY);
             res.status(400).send(errorBody);
             return;
         }
-        const artistToInsert = {
+        const tagToInsert = {
             id: -1,
-            name: req.body['name'],
-            musicbrainzId: null,
+            label: req.body['label']
         };
-        console.log("pré envoi", req.body);
-        const artist = await this.getArtistsService.addArtist(artistToInsert);
-        res.send(artist);
+        const insertedTag = await this.getTagsService.addTag(tagToInsert);
+        res.send(insertedTag);
     }
-    async getArtist(req, res) {
+    async getTag(req, res) {
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -90,55 +88,41 @@ class ArtistController {
             res.status(406).send(errorBody);
             return;
         }
-        const artist = await this.getArtistsService.getOneById(id);
-        if (artist == null) {
+        const tag = await this.getTagsService.getOneById(id);
+        if (tag == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
             res.status(404).send(errorBody);
             return;
         }
-        res.send(artist);
+        res.send(tag);
     }
-    /**
-     * Returns all the songs released by the given artist
-     * @param req
-     * @param res
-     */
-    async getArtistSongs(req, res) {
-        if (req.params['id'] == null) {
-            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
-            res.status(422).send(errorBody);
+    async getTagSongs(req, res) {
+        const id = checkTagId(req, res);
+        if (id == undefined)
+            return;
+        const tag = await this.getTagsService.getOneById(id);
+        if (tag == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
+            res.status(404).send(errorBody);
             return;
         }
-        //parsing the parameter
-        const artist_id = Number.parseInt(req.params['id']);
-        if (artist_id == null || Number.isNaN(artist_id)) {
-            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
-            res.status(406).send(errorBody);
-            return;
-        }
-        const songList = await this.getArtistsService.getSongs(artist_id);
-        res.send(songList);
-    }
-    /**
-     * Returns all albums released by the given artist
-     * @param req
-     * @param res
-     */
-    async getArtistAlbums(req, res) {
-        if (req.params['id'] == null) {
-            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
-            res.status(422).send(errorBody);
-            return;
-        }
-        //parsing the parameter
-        const artist_id = Number.parseInt(req.params['id']);
-        if (artist_id == null || Number.isNaN(artist_id)) {
-            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
-            res.status(406).send(errorBody);
-            return;
-        }
-        const albumList = await this.getArtistsService.getAlbums(artist_id);
-        res.send(albumList);
+        const songs = await this.getTagsService.getTagSongs(id);
+        res.send(songs);
     }
 }
-exports.default = ArtistController;
+exports.default = TagController;
+function checkTagId(req, res) {
+    if (req.params['id'] == null) {
+        const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+        res.status(422).send(errorBody);
+        return;
+    }
+    //parsing the parameter
+    const id = Number.parseInt(req.params['id']);
+    if (id == null || Number.isNaN(id)) {
+        const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+        res.status(406).send(errorBody);
+        return;
+    }
+    return id;
+}

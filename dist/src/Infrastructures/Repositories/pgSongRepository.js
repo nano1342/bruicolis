@@ -35,14 +35,45 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PgSongRepository = void 0;
 const Errors = __importStar(require("../../Utils/Errors"));
+const ResponseBody_1 = require("../../Utils/ResponseBody");
+const util = __importStar(require("util"));
 //TODO ajouter objet de lien SongArtistLink
 class PgSongRepository {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async selectAll() {
-        let songs = await this.prisma.song.findMany();
+    async selectAll(filters) {
+        let songs;
+        let sqlOptions = {
+            where: {
+                AND: []
+            }
+        };
+        if (filters != null) {
+            if ('tagsOR' in filters && filters['tagsOR'].length > 0) {
+                const tags = filters['tagsOR'];
+                sqlOptions.where.AND.push({
+                    TagLink: {
+                        some: {
+                            idTag: { in: tags }
+                        }
+                    }
+                });
+            }
+            if ('tagsAND' in filters && filters['tagsAND'].length > 0) {
+                const tags = filters['tagsAND'];
+                let obj = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } });
+                }
+                sqlOptions.where.AND.push(obj);
+            }
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+            }
+        }
+        songs = await this.prisma.song.findMany(sqlOptions);
         return songs.map((song) => {
             return {
                 id: song.id,
@@ -51,12 +82,39 @@ class PgSongRepository {
             };
         });
     }
-    async selectPage(skip, take) {
-        const options = {
+    async selectPage(skip, take, filters) {
+        let songs;
+        const sqlOptions = {
             skip: skip,
             take: take
         };
-        let songs = await this.prisma.song.findMany(options);
+        if (filters != null) {
+            sqlOptions.where = { AND: [] };
+            if ('tagsOR' in filters && filters['tagsOR'].length > 0) {
+                const tags = filters['tagsOR'];
+                sqlOptions.where.AND.push({
+                    TagLink: {
+                        some: {
+                            idTag: { in: tags }
+                        }
+                    }
+                });
+            }
+            if ('tagsAND' in filters && filters['tagsAND'].length > 0) {
+                const tags = filters['tagsAND'];
+                let obj = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } });
+                }
+                sqlOptions.where.AND.push(obj);
+            }
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+            }
+            console.log(util.inspect(sqlOptions, { showHidden: false, depth: null, colors: true }));
+            songs = await this.prisma.song.findMany(sqlOptions);
+        }
+        songs = await this.prisma.song.findMany(sqlOptions);
         return songs.map((song) => {
             return {
                 id: song.id,
@@ -104,6 +162,46 @@ class PgSongRepository {
             release_date: newSong.releaseDate
         };
         return newSongToReturn;
+    }
+    /**
+     * Adds a tag to the song.
+     * @param songId
+     * @param tagId
+     * @returns {ResponseBody}
+     */
+    async insertTag(songId, tagId) {
+        try {
+            let newTagLink = await this.prisma.tagLink.create({
+                data: {
+                    idTag: tagId,
+                    idSong: songId,
+                    idAlbum: undefined,
+                    idArtist: undefined,
+                }
+            });
+        }
+        catch (error) {
+            return ResponseBody_1.ResponseBody.getResponseBodyFail("Something went wrong. Tag not added.", Errors.getErrorBodyDefault(Errors.ErrorType.SERVER_ERROR));
+        }
+        return ResponseBody_1.ResponseBody.getResponseBodyOk("Tag successfully added to the song.");
+    }
+    async selectTags(songId) {
+        let results = await this.prisma.tag.findMany({
+            where: {
+                TagLink: {
+                    some: {
+                        idSong: songId
+                    },
+                },
+            },
+        });
+        const foundTags = results.map((tag) => {
+            return {
+                id: tag.id,
+                label: tag.label,
+            };
+        });
+        return ResponseBody_1.ResponseBody.getResponseBodyOkWithObject(foundTags.length + " tags found.", foundTags);
     }
 }
 exports.PgSongRepository = PgSongRepository;

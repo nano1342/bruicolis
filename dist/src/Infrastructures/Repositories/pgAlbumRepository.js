@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PgAlbumRepository = void 0;
 const Errors = __importStar(require("../../Utils/Errors"));
+const ResponseBody_1 = require("../../Utils/ResponseBody");
 class PgAlbumRepository {
     prisma;
     constructor(prisma) {
@@ -78,6 +79,40 @@ class PgAlbumRepository {
             name: album.name,
             release_date: album.releaseDate
         };
+    }
+    async selectSongsAll(albumId) {
+        let songs = await this.prisma.song.findMany({
+            where: {
+                songAlbumLinks: {
+                    some: {
+                        albumId: albumId,
+                    },
+                },
+            },
+        });
+        return songs.map((song) => {
+            return {
+                id: song.id,
+                name: song.name,
+                release_date: song.releaseDate
+            };
+        });
+    }
+    async insertSongLink(albumId, songId) {
+        let newSongAlbumLink;
+        try {
+            newSongAlbumLink = await this.prisma.songAlbumLink.create({
+                data: {
+                    albumId: albumId,
+                    songId: songId
+                }
+            });
+        }
+        catch (PrismaClientKnownRequestError) {
+            return ResponseBody_1.ResponseBody.getResponseBodyFail("Something went wrong.", Errors.getErrorBodyDefault(Errors.ErrorType.FOREIGN_KEY_NOT_FOUND));
+        }
+        const respBody = ResponseBody_1.ResponseBody.getResponseBodyOkWithObject("Song successfully added to the album.", newSongAlbumLink);
+        return respBody;
     }
     async insertAlbum(albumToInsert, artistd) {
         let newAlbum = await this.prisma.album.create({

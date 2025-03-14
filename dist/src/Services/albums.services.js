@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AlbumsService = void 0;
 const Errors = __importStar(require("../Utils/Errors"));
+const ResponseBody_1 = require("../Utils/ResponseBody");
 class AlbumsService {
     albumRepository;
     constructor(albumRepository) {
@@ -46,7 +47,7 @@ class AlbumsService {
     getPage(page, limit) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
-                return Errors.ErrorType.INCORRECT_PARAMETER;
+                return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
             }
             return this.albumRepository.selectPage((page - 1) * limit, limit);
         }
@@ -54,12 +55,24 @@ class AlbumsService {
             return Errors.ErrorType.INCORRECT_PARAMETER;
         }
     }
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     getOneById(albumId) {
         //vérifications préalables avant requête
         return this.albumRepository.selectOneById(albumId);
     }
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getSongsAll(albumId) {
+        //vérifications préalables avant requête
+        return this.albumRepository.selectSongsAll(albumId);
+    }
+    async addSong(albumId, songId) {
+        //vérifications préalables avant requête
+        const albumSongs = await this.albumRepository.selectSongsAll(albumId);
+        for (const song of albumSongs) {
+            if (song.id == songId) {
+                return ResponseBody_1.ResponseBody.getResponseBodyFail("Song already in album.", Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER));
+            }
+        }
+        return this.albumRepository.insertSongLink(albumId, songId);
+    }
     addAlbum(albumToInsert, artistId) {
         //vérifications préalables avant requête
         return this.albumRepository.insertAlbum(albumToInsert, artistId);

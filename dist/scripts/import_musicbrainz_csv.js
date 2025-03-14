@@ -80,7 +80,7 @@ function start() {
     db.exec("CREATE TABLE artist_credit_to_artist (artist_credit INTEGER, artist INTEGER)");
     db.exec("CREATE TABLE recording_to_medium (recording INTEGER, medium INTEGER)");
     db.exec("CREATE TABLE medium_to_release (medium INTEGER, release INTEGER)");
-    db.exec("CREATE TABLE release_to_release_date (release INTEGER, year INTEGER, month INTEGER, day INTEGER)");
+    db.exec("CREATE TABLE release_to_release_date (release INTEGER, date DATETIME)");
     db.exec("CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
     importArtists();
 }
@@ -254,7 +254,7 @@ function buildReleaseToReleaseCountryMappings() {
                 day: parseInt(r[4]),
             };
             // pushToArrayOrInitInMap(releaseToReleaseDate, release, releaseDate);
-            db.prepare("INSERT INTO release_to_release_date VALUES (?, ?, ?, ?)").run(release, releaseDate.year, releaseDate.month, releaseDate.day);
+            db.prepare("INSERT INTO release_to_release_date VALUES (?, ?)").run(release, convertToDate(releaseDate).toISOString());
         },
         onendorclose: () => {
             console.log("release to release date mappings done.");
@@ -308,8 +308,9 @@ function importSongs() {
                 return;
             }
             const recordingId = parseInt(r[0]);
-            const releaseDate = getRecordingFirstReleaseDate(recordingId);
-            const date = convertToDate(releaseDate);
+            // const releaseDate = getRecordingFirstReleaseDate(recordingId);
+            const date = getRecordingFirstReleaseDate(recordingId);
+            // const date = convertToDate(releaseDate);
             try {
                 expectedSongs++;
                 asyncLocalStorage.run({ i }, () => {
@@ -321,7 +322,7 @@ function importSongs() {
                         .addSongWithMultipleArtists({
                         id: 0, // ignored by service,
                         name,
-                        release_date: date,
+                        release_date: date === null ? new Date(0) : date,
                     }, dbArtistIds)
                         .then(() => {
                         acknowledgedSongs++;
@@ -404,22 +405,28 @@ let getRecordingFirstReleaseDate = (recordingId) => {
     if (getRecordingFirstReleaseDateCache.has(recordingId)) {
         return getRecordingFirstReleaseDateCache.get(recordingId);
     }
-    const releaseDates = [];
-    const stmt = db.prepare("SELECT year,month,day FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?");
-    for (const row of stmt.iterate(recordingId)) {
-        const r = row;
-        releaseDates.push({
-            year: r.year,
-            month: r.month,
-            day: r.day,
-        });
-    }
+    // const releaseDates: ReleaseDate[] = [];
+    const stmt = db.prepare("SELECT MIN(date) FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?");
+    // for (const row of stmt.iterate(recordingId)) {
+    //     const r = row as { year: number; month: number; day: number };
+    //     releaseDates.push({
+    //         year: r.year,
+    //         month: r.month,
+    //         day: r.day,
+    //     });
+    // }
     let date = null;
-    if (releaseDates.length === 0) {
+    // if (releaseDates.length === 0) {
+    //     date = null;
+    // } else {
+    //     date = getMinimumDate(releaseDates);
+    // }
+    const result = stmt.get(recordingId);
+    if (result === undefined) {
         date = null;
     }
     else {
-        date = getMinimumDate(releaseDates);
+        date = new Date(result["MIN(date)"]);
     }
     getRecordingFirstReleaseDateCache.set(recordingId, date);
     return date;
@@ -431,22 +438,29 @@ let getReleaseFirstReleaseDate = (releaseId) => {
     if (getReleaseFirstReleaseDateCache.has(releaseId)) {
         return getReleaseFirstReleaseDateCache.get(releaseId);
     }
-    const releaseDates = [];
-    const stmt = db.prepare("SELECT year,month,day FROM release_to_release_date WHERE release = ?");
-    for (const row of stmt.iterate(releaseId)) {
-        const r = row;
-        releaseDates.push({
-            year: r.year,
-            month: r.month,
-            day: r.day,
-        });
-    }
+    // const releaseDates: ReleaseDate[] = [];
+    const stmt = db.prepare("SELECT MIN(date) FROM release_to_release_date WHERE release = ?");
+    // for (const row of stmt.iterate(releaseId)) {
+    //     const r = row as { year: number; month: number; day: number };
+    //     releaseDates.push({
+    //         year: r.year,
+    //         month: r.month,
+    //         day: r.day,
+    //     });
+    // }
     let date = null;
-    if (releaseDates.length === 0) {
+    // let date: ReleaseDate | null = null;
+    // if (releaseDates.length === 0) {
+    //     date = null;
+    // } else {
+    //     date = getMinimumDate(releaseDates);
+    // }
+    const result = stmt.get(releaseId);
+    if (result === undefined) {
         date = null;
     }
     else {
-        date = getMinimumDate(releaseDates);
+        date = new Date(result["MIN(date)"]);
     }
     getReleaseFirstReleaseDateCache.set(releaseId, date);
     return date;
@@ -530,8 +544,9 @@ function importAlbums() {
                 return;
             }
             const recordingId = parseInt(r[0]);
-            const releaseDate = getReleaseFirstReleaseDate(recordingId);
-            const date = convertToDate(releaseDate);
+            // const releaseDate = getReleaseFirstReleaseDate(recordingId);
+            // const date = convertToDate(releaseDate);
+            const date = getReleaseFirstReleaseDate(recordingId);
             try {
                 expectedAlbums++;
                 asyncLocalStorage.run({ i }, () => {
@@ -542,7 +557,7 @@ function importAlbums() {
                         .addAlbumWithMultipleArtists({
                         id: 0, // ignored by service,
                         name,
-                        release_date: date,
+                        release_date: date === null ? new Date(0) : date,
                     }, dbArtistIds)
                         .then(() => {
                         acknowledgedAlbums++;
@@ -578,7 +593,7 @@ function importAlbums() {
  */
 let convertToDate = (releaseDate) => {
     const date = new Date();
-    if (releaseDate !== null) {
+    if (releaseDate !== null && !isNaN(releaseDate.year) && !isNaN(releaseDate.month) && !isNaN(releaseDate.day)) {
         date.setUTCFullYear(Math.max(1970, releaseDate.year));
         date.setUTCMonth(releaseDate.month);
         date.setUTCDate(releaseDate.day);

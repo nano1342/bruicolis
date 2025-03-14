@@ -30,6 +30,42 @@ class PgArtistRepository {
             };
         });
     }
+    async selectSongsAll(artistId) {
+        let songs = await this.prisma.song.findMany({
+            where: {
+                songArtistLinks: {
+                    some: {
+                        artistId: artistId
+                    },
+                },
+            },
+        });
+        return songs.map((song) => {
+            return {
+                id: song.id,
+                name: song.name,
+                release_date: song.releaseDate
+            };
+        });
+    }
+    async selectAlbumsAll(artistId) {
+        let albums = await this.prisma.album.findMany({
+            where: {
+                artistAlbumLinks: {
+                    some: {
+                        artistId: artistId
+                    },
+                },
+            },
+        });
+        return albums.map((album) => {
+            return {
+                id: album.id,
+                name: album.name,
+                release_date: album.releaseDate
+            };
+        });
+    }
     async selectOneById(artistId) {
         let artist = await this.prisma.artist.findUnique({ where: {
                 id: artistId,

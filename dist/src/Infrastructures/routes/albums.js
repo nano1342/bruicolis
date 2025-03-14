@@ -6,4 +6,6 @@ const router = (0, express_1.Router)();
 router.get("/", dependencies_1.albumController.getAlbums.bind(dependencies_1.albumController));
 router.post("/", dependencies_1.albumController.addAlbum.bind(dependencies_1.albumController));
 router.get("/:id", dependencies_1.albumController.getAlbum.bind(dependencies_1.albumController));
+router.get("/:id/songs", dependencies_1.albumController.getAlbumSongs.bind(dependencies_1.albumController));
+router.post("/:id/songs", dependencies_1.albumController.addAlbumSong.bind(dependencies_1.albumController));
 exports.default = router;

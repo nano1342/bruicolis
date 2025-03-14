@@ -25,8 +25,11 @@ var ErrorType;
     ErrorType["WRONG_BODY"] = "Wrong body";
     ErrorType["MISSING_PARAMETER"] = "Missing parameter";
     ErrorType["INCORRECT_PARAMETER"] = "Incorrect parameter";
+    ErrorType["MISSING_BODY_PARAMETER"] = "Missing body parameter";
+    ErrorType["INCORRECT_BODY_PARAMETER"] = "Incorrect body parameter";
     ErrorType["NOT_FOUND"] = "Not found";
     ErrorType["FOREIGN_KEY_NOT_FOUND"] = "Foreign key not found";
+    ErrorType["SERVER_ERROR"] = "Server error";
     ErrorType["DEFAULT"] = "Default";
 })(ErrorType || (exports.ErrorType = ErrorType = {}));
 const defaultMessages = new Map([

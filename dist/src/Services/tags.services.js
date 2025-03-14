@@ -33,46 +33,51 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GetArtistsService = void 0;
+exports.TagsService = void 0;
 const Errors = __importStar(require("../Utils/Errors"));
-//potentiellement renommer en service
-class GetArtistsService {
-    artistRepository;
-    constructor(artistRepository) {
-        this.artistRepository = artistRepository;
+class TagsService {
+    tagRepository;
+    constructor(tagRepository) {
+        this.tagRepository = tagRepository;
     }
     getAll() {
-        return this.artistRepository.selectAll();
+        return this.tagRepository.selectAll();
     }
     getPage(page, limit) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
                 return Errors.ErrorType.INCORRECT_PARAMETER;
             }
-            return this.artistRepository.selectPage((page - 1) * limit, limit);
+            return this.tagRepository.selectPage((page - 1) * limit, limit);
         }
         catch (error) {
             return Errors.ErrorType.INCORRECT_PARAMETER;
         }
     }
-    getSongs(artistId) {
-        return this.artistRepository.selectSongsAll(artistId);
-    }
-    getAlbums(artistId) {
-        return this.artistRepository.selectAlbumsAll(artistId);
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getOneById(tagId) {
+        //vérifications préalables avant requête
+        return this.tagRepository.selectOneById(tagId);
     }
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
-    getOneById(artistId) {
+    addTag(tagToInsert) {
         //vérifications préalables avant requête
-        return this.artistRepository.selectOneById(artistId);
-    }
-    findArtistIdByMusicBrainzId(artistId) {
-        return this.artistRepository.findArtistByMusicBrainzId(artistId);
+        return this.tagRepository.insertTag(tagToInsert);
     }
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
-    addArtist(artistToInsert) {
+    getTagSongs(tagId) {
         //vérifications préalables avant requête
-        return this.artistRepository.insertArtist(artistToInsert);
+        return this.tagRepository.selectTagSongs(tagId);
+    }
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getTagArtists(tagId) {
+        //vérifications préalables avant requête
+        return this.tagRepository.selectTagArtists(tagId);
+    }
+    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getTagAlbums(tagId) {
+        //vérifications préalables avant requête
+        return this.tagRepository.selectTagAlbums(tagId);
     }
 }
-exports.GetArtistsService = GetArtistsService;
+exports.TagsService = TagsService;
