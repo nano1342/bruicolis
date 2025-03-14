@@ -74,7 +74,7 @@ export class GetSongsService {
         }
         
         //adding the tag
-        return this.songRepository.insertTag(songId, tagId);
+        return this.songRepository.insertTagLink(songId, tagId);
     }
     
 
