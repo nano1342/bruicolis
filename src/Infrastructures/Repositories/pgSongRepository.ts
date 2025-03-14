@@ -134,6 +134,7 @@ export class PgSongRepository implements SongRepository {
         } else {
             date = songToInsert.release_date;
         }
+        // TOFIX: ajoute une vérif sur le format de la date
         
         let newSong: Song = await this.prisma.song.create({
             data: {
