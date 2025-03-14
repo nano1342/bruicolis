@@ -4,7 +4,7 @@ import { ResponseBody } from "../../Utils/ResponseBody";
 
 export interface SongRepository {
     
-    selectAll(filters: object) :Promise<Song[]>
+    selectAll(filters: object) :Promise<ResponseBody>
     
     selectPage(skip: number, take: number, filters: object) :Promise<Song[]>
     

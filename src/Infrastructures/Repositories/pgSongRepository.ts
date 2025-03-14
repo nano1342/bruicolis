@@ -22,6 +22,21 @@ export class PgSongRepository implements SongRepository {
         if (filters != null) {
             if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
                 const tags = filters['tagsOR'] as [];
+
+                const existingTags = await this.prisma.tag.findMany({
+                    where: {
+                        id: { in: tags }
+                    },
+                    select: { id: true } // On récupère juste l'ID
+                });
+
+                const existingTagIds = existingTags.map(tag => tag.id);
+                const missingTags = tags.filter(tagId => !existingTagIds.includes(tagId));
+
+                if (missingTags.length > 0) {
+                    return ResponseBody.getResponseBodyFail("", Errors.getErrorBodyDefault(Errors.ErrorType.FOREIGN_KEY_NOT_FOUND));
+                }
+                
                 sqlOptions.where.AND.push(
                     {
                         TagLink: {
@@ -53,13 +68,15 @@ export class PgSongRepository implements SongRepository {
 
         songs = await this.prisma.song.findMany(sqlOptions as object);
         
-        return songs.map((song) => {
+        const songsReturn = songs.map((song) => {
             return {
                 id: song.id,
                 name: song.name,
                 release_date: song.releaseDate
             }
         })
+
+        return ResponseBody.getResponseBodyOkWithObject(songsReturn.length + " songs found", songsReturn);
     }
 
     async selectPage(skip: number, take: number, filters: object) {
