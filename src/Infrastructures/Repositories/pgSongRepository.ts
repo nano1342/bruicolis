@@ -44,7 +44,10 @@ export class PgSongRepository implements SongRepository {
             }
 
             if ('text_query' in filters) {
-                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+                sqlOptions.where.AND.push({ name: {
+                    contains: filters['text_query'],
+                    mode: 'insensitive'
+                } });
             }
         }
 
@@ -170,9 +173,8 @@ export class PgSongRepository implements SongRepository {
      * @param tagId 
      * @returns {ResponseBody}
      */
-    async insertTag(songId: number, tagId: number) {
+    async insertTagLink(songId: number, tagId: number) {
         try {
-            
             let newTagLink: TagLink = await this.prisma.tagLink.create({
                 data: {
                     idTag: tagId,
