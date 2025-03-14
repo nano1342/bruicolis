@@ -9,4 +9,6 @@ router.post("/", tagController.addTag.bind(tagController));
 
 router.get("/:id", tagController.getTag.bind(tagController));
 
+router.get("/:id/songs", tagController.getTagSongs.bind(tagController));
+
 export default router;

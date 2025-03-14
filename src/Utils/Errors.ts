@@ -20,8 +20,11 @@ enum ErrorType {
     WRONG_BODY = "Wrong body",
     MISSING_PARAMETER = "Missing parameter",
     INCORRECT_PARAMETER = "Incorrect parameter",
+    MISSING_BODY_PARAMETER = "Missing body parameter",
+    INCORRECT_BODY_PARAMETER = "Incorrect body parameter",
     NOT_FOUND = "Not found",
     FOREIGN_KEY_NOT_FOUND = "Foreign key not found",
+    SERVER_ERROR = "Server error",
     DEFAULT = "Default"
 }
 

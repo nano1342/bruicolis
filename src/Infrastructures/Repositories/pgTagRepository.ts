@@ -52,6 +52,65 @@ export class PgTagRepository implements TagRepository {
         }
     }
 
+    async selectTagSongs(tagId: number) {
+        let songs = await this.prisma.song.findMany({
+            where: {
+            TagLink: {
+                some: {
+                    idTag: tagId,
+                },
+              },
+            },
+          });
+
+        return songs.map((song) => {
+            return {
+                id: song.id,
+                name: song.name,
+                release_date: song.releaseDate
+            }
+        })
+    }
+
+    async selectTagArtists(tagId: number) {
+        let artists = await this.prisma.artist.findMany({
+            where: {
+            TagLink: {
+                some: {
+                    idTag: tagId,
+                },
+              },
+            },
+          });
+
+        return artists.map((artist) => {
+            return {
+                id: artist.id,
+                name: artist.name,
+            }
+        })
+    }
+
+    async selectTagAlbums(tagId: number) {
+        let albums = await this.prisma.album.findMany({
+            where: {
+            TagLink: {
+                some: {
+                    idTag: tagId,
+                },
+              },
+            },
+          });
+
+        return albums.map((album) => {
+            return {
+                id: album.id,
+                name: album.name,
+                release_date: album.releaseDate,
+            }
+        })
+    }
+
     async insertTag(tagToInsert: TagModel) {
         let newTag: Tag = await this.prisma.tag.create({
             data: {
