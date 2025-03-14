@@ -66,13 +66,13 @@ interface ReleaseDate {
 
 const MAX_ARTISTS = 50_000;
 const MAX_SONGS = 5_000;
-const MAX_MAPPINGS = 500_000;
+const MAX_MAPPINGS = 250_000;
 const MAX_ALBUMS = 5_000;
 const MAX_TAGS = 5_000;
 const MAX_TAG_ARTIST_BINDINGS = 20_000;
 const MAX_TAG_RELEASE_BINDINGS = 20_000;
 const MAX_TAG_RECORDING_BINDINGS = 20_000;
-const MEASURE_PERFORMANCE = false;
+const MEASURE_PERFORMANCE = true;
 
 /**
  * Based on https://musicbrainz.org/statistics on 2025-03-14
@@ -377,9 +377,16 @@ function buildReleaseToReleaseCountryMappings() {
         },
         onendorclose: () => {
             console.log("release to release date mappings done.");
-            importSongs();
+            cacheMappingsInSingleTable();
         },
     });
+}
+
+function cacheMappingsInSingleTable() {
+    console.log("=== caching mappings in single table...");
+    db.exec("CREATE TABLE mappings AS SELECT * FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date");
+    console.log("mappings cached.");
+    importSongs();
 }
 
 let expectedSongs = 0;
@@ -491,7 +498,7 @@ let getRecordingFirstReleaseDate = (
         return getRecordingFirstReleaseDateCache.get(recordingId)!;
     }
     const stmt = db.prepare(
-        "SELECT MIN(date) FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?"
+        "SELECT MIN(date) FROM mappings WHERE recording = ?"
     );
 
     let date: Date | null = null;
@@ -514,7 +521,7 @@ let getReleaseFirstReleaseDate = (releaseId: number): Date | null => {
         return getReleaseFirstReleaseDateCache.get(releaseId)!;
     }
     const stmt = db.prepare(
-        "SELECT MIN(date) FROM release_to_release_date WHERE release = ?"
+        "SELECT MIN(date) FROM mappings WHERE release = ?"
     );
 
     let date: Date | null = null;
