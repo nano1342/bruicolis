@@ -86,4 +86,72 @@ export default class AlbumController {
         }
         res.send(album);
     }
+
+    async getAlbumSongs(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        //parsing the parameter
+        const id = Number.parseInt(req.params['id']);
+        if (id == null || Number.isNaN(id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+        
+        const album = await this.getAlbumsService.getOneById(id);
+        if (album == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
+            res.status(404).send(errorBody);
+            return;
+        }
+        const songList = await this.getAlbumsService.getSongsAll(id);
+        res.send(songList);
+    }
+
+    async addAlbumSong(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        //parsing the parameter
+        const id = Number.parseInt(req.params['id']);
+        if (id == null || Number.isNaN(id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+        
+        if (req.body['song_id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_BODY_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        const songId = Number.parseInt(req.body['song_id']);
+        
+        if (songId == null || Number.isNaN(songId)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+
+        const respBody = await this.getAlbumsService.addSong(id, songId);
+        if (respBody.error != null) {
+            
+            let errorObj: { [key: string]: any } = respBody.error;
+            if (errorObj.error.type == "Foreign key not found") {
+                res.status(404);
+            } else if (errorObj.error.type == "Incorrect body parameter") {
+                res.status(400);
+            }
+            else res.status(500);
+        }
+        res.send(respBody);
+    }
 }

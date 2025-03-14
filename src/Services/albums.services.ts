@@ -1,6 +1,8 @@
+import { Song } from "@prisma/client";
 import { Album } from "../Domains/Models/Album";
 import { AlbumRepository } from "../Domains/repositories/albumRepository";
 import * as Errors from "../Utils/Errors";
+import { ResponseBody } from "../Utils/ResponseBody";
 
 export class AlbumsService {
 
@@ -15,7 +17,7 @@ export class AlbumsService {
     getPage(page: number, limit: number) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
-                return Errors.ErrorType.INCORRECT_PARAMETER;
+                return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
             }
             return this.albumRepository.selectPage((page-1)*limit, limit)
         } catch (error) {
@@ -23,14 +25,31 @@ export class AlbumsService {
         }
     }
 
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     getOneById(albumId: number) {
         //vérifications préalables avant requête
 
         return this.albumRepository.selectOneById(albumId);
     }
 
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
+    getSongsAll(albumId: number) {
+        //vérifications préalables avant requête
+
+        return this.albumRepository.selectSongsAll(albumId);
+    }
+
+    async addSong(albumId: number, songId: number) {
+        //vérifications préalables avant requête
+
+        const albumSongs = await this.albumRepository.selectSongsAll(albumId);
+        for (const song of albumSongs) {
+            if (song.id == songId) {
+                return ResponseBody.getResponseBodyFail("Song already in album.", Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER))
+            }
+        }
+
+        return this.albumRepository.insertSongLink(albumId, songId);
+    }
+
     addAlbum(albumToInsert: Album, artistId: number) {
         //vérifications préalables avant requête
 

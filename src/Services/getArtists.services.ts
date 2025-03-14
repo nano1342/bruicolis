@@ -24,6 +24,14 @@ export class GetArtistsService {
         }
     }
 
+    getSongs(artistId: number) {
+        return this.artistRepository.selectSongsAll(artistId);
+    }
+
+    getAlbums(artistId: number) {
+        return this.artistRepository.selectAlbumsAll(artistId);
+    }
+
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     getOneById(artistId: number) {
         //vérifications préalables avant requête

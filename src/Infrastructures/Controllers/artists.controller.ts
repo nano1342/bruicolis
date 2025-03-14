@@ -80,4 +80,53 @@ export default class ArtistController {
         }
         res.send(artist);
     }
+
+    /**
+     * Returns all the songs released by the given artist
+     * @param req 
+     * @param res 
+     */
+    async getArtistSongs(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        //parsing the parameter
+        const artist_id = Number.parseInt(req.params['id']);
+        if (artist_id == null || Number.isNaN(artist_id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+        
+        const songList = await this.getArtistsService.getSongs(artist_id);
+        res.send(songList);
+    }
+
+
+    /**
+     * Returns all albums released by the given artist
+     * @param req 
+     * @param res 
+     */
+    async getArtistAlbums(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+        
+        //parsing the parameter
+        const artist_id = Number.parseInt(req.params['id']);
+        if (artist_id == null || Number.isNaN(artist_id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+
+        const albumList = await this.getArtistsService.getAlbums(artist_id);
+        res.send(albumList);
+    }
 }

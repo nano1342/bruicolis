@@ -19,6 +19,7 @@ model Album {
   releaseDate      DateTime
   songAlbumLinks   SongAlbumLink[]
   artistAlbumLinks ArtistAlbumLink[]
+  TagLink          TagLink[]
 }
 
 model Artist {
@@ -27,6 +28,7 @@ model Artist {
   musicbrainzId    Int?
   songArtistLinks  SongArtistLink[]
   artistAlbumLinks ArtistAlbumLink[]
+  TagLink          TagLink[]
 }
 
 model Song {
@@ -35,6 +37,7 @@ model Song {
   releaseDate     DateTime
   songAlbumLinks  SongAlbumLink[]
   songArtistLinks SongArtistLink[]
+  TagLink         TagLink[]
 }
 
 model SongArtistLink {
@@ -62,14 +65,19 @@ model ArtistAlbumLink {
 }
 
 model Tag {
-  id    Int    @id @default(autoincrement())
-  label String @db.VarChar(50)
+  id      Int       @id @default(autoincrement())
+  label   String    @db.VarChar(50)
+  TagLink TagLink[]
 }
 
 model TagLink {
-  id       Int @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
+  tag      Tag     @relation(fields: [idTag], references: [id])
   idTag    Int
-  idSong   Int
-  idAlbum  Int
-  idArtist Int
+  song     Song?   @relation(fields: [idSong], references: [id])
+  idSong   Int?
+  album    Album?  @relation(fields: [idAlbum], references: [id])
+  idAlbum  Int?
+  artist   Artist? @relation(fields: [idArtist], references: [id])
+  idArtist Int?
 }

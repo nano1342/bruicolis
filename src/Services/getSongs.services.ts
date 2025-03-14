@@ -1,37 +1,37 @@
 import { Song } from "../Domains/Models/Song";
 import { SongRepository } from "../Domains/repositories/songRepository";
+import { TagRepository } from "../Domains/repositories/tagRepository";
 import * as Errors from "../Utils/Errors";
+import { ResponseBody } from "../Utils/ResponseBody";
 
 //potentiellement renommer en service
 export class GetSongsService {
 
-    constructor(private readonly songRepository:SongRepository) {
+    constructor(private readonly songRepository:SongRepository, private readonly tagRepository:TagRepository) {
         
     }
 
-    getAll() {
-        return this.songRepository.selectAll();
+    getAll(filters: object) {
+        return this.songRepository.selectAll(filters);
     }
 
-    getPage(page: number, limit: number) {
+    getPage(page: number, limit: number, filters: object) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
                 return Errors.ErrorType.INCORRECT_PARAMETER;
             }
-            return this.songRepository.selectPage((page-1)*limit, limit)
+            return this.songRepository.selectPage((page-1)*limit, limit, filters)
         } catch (error) {
             return Errors.ErrorType.INCORRECT_PARAMETER;
         }
     }
 
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     getOneById(songId: number) {
         //vérifications préalables avant requête
 
         return this.songRepository.selectOneById(songId);
     }
 
-    //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     addSong(songToInsert: Song, artistd: number) {
         //vérifications préalables avant requête
 
@@ -47,6 +47,41 @@ export class GetSongsService {
             songs.push(await this.addSong(songToInsert, id));
         }
         return songs;
+    }
+
+    async addTag(songId: number, tagId: number) {
+        
+        //checking if the tag ID is correct
+        const tag = await this.tagRepository.selectOneById(tagId);
+        if (tag == null) {
+            return ResponseBody.getResponseBodyFail(
+                "The provided tag ID doesn't exist.",
+                Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER)
+            );
+        }
+    
+        //checking if the song already has that tag
+        const checkResp = await this.songRepository.selectTags(songId);
+        if (checkResp.returnObject == null) {
+            return ResponseBody.getResponseBodyFailDefault();
+        } else {
+            const tags = checkResp.returnObject as Array<{ id: number }>;
+            const existingTag = tags.find(tag => tag.id === tagId);
+            
+            if (existingTag) {
+                return ResponseBody.getResponseBodyOk("Tag was already attributed to this song. Nothing was modified.");
+            }
+        }
+        
+        //adding the tag
+        return this.songRepository.insertTag(songId, tagId);
+    }
+    
+
+    async getTags(songId: number) {
+        //vérifications préalables avant requête
+
+        return this.songRepository.selectTags(songId);
     }
     
 }

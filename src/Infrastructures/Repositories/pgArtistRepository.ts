@@ -1,5 +1,6 @@
-import { Artist, PrismaClient } from "@prisma/client";
+import { Album, Artist, PrismaClient } from "@prisma/client";
 import { ArtistRepository } from "../../Domains/repositories/artistRepository";
+import { Song } from "../../Domains/Models/Song";
 
 export class PgArtistRepository implements ArtistRepository {
     
@@ -35,6 +36,47 @@ export class PgArtistRepository implements ArtistRepository {
             }
         })
     }
+
+    async selectSongsAll(artistId: number) {
+        let songs = await this.prisma.song.findMany({
+            where: {
+                songArtistLinks: {
+                    some: {
+                        artistId: artistId
+                    },
+                },
+            },
+        });
+
+        return songs.map((song) => {
+            return {
+                id: song.id,
+                name: song.name,
+                release_date: song.releaseDate
+            }
+        })
+    }
+
+    async selectAlbumsAll(artistId: number) {
+        let albums = await this.prisma.album.findMany({
+            where: {
+                artistAlbumLinks: {
+                    some: {
+                        artistId: artistId
+                    },
+                },
+            },
+        });
+
+        return albums.map((album) => {
+            return {
+                id: album.id,
+                name: album.name,
+                release_date: album.releaseDate
+            }
+        })
+    }
+    
 
     async selectOneById(artistId: number): Promise<Artist | null> {
         let artist = await this.prisma.artist.findUnique({where: {
