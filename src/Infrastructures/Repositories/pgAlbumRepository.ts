@@ -3,6 +3,7 @@ import { Album as AlbumModel } from "../../Domains/Models/Album";
 import { AlbumRepository } from "../../Domains/repositories/albumRepository";
 import * as Errors from "../../Utils/Errors";
 import { ResponseBody } from "../../Utils/ResponseBody";
+import * as util from 'util';
 
 export class PgAlbumRepository implements AlbumRepository {
     
@@ -10,8 +11,37 @@ export class PgAlbumRepository implements AlbumRepository {
         
     }
 
-    async selectAll() {
-        let albums = await this.prisma.album.findMany();
+    async selectAll(filters: object) {
+        let sqlOptions: { [key: string]: any } = {
+            where: {
+                AND: []
+            }
+        };
+        if (filters != null) {
+            if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
+                const tags = filters['tagsOR'] as [];
+                sqlOptions.where.AND.push({ TagLink: { some: { idTag: { in: tags } } } });
+            }
+
+            if ('tagsAND' in filters && (filters['tagsAND'] as []).length > 0) {
+                const tags = filters['tagsAND'] as [];
+                let obj: { [key: string]: any } = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } });
+                }
+
+                sqlOptions.where.AND.push(obj);
+            }
+
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: { 
+                    contains: filters['text_query'],
+                    mode: 'insensitive'
+                } });
+            }
+        }
+
+        let albums = await this.prisma.album.findMany(sqlOptions as object);
         
         return albums.map((album) => {
             return {
@@ -22,13 +52,37 @@ export class PgAlbumRepository implements AlbumRepository {
         })
     }
 
-    async selectPage(skip: number, take: number) {
-        const options = {
-            skip: skip,
-            take: take
+    async selectPage(skip: number, take: number, filters: object) {
+        let sqlOptions: { [key: string]: any } = {
+            where: {
+                AND: []
+            }
+        };
+        if (filters != null) {
+            if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
+                const tags = filters['tagsOR'] as [];
+                sqlOptions.where.AND.push({ TagLink: { some: { idTag: { in: tags } } } });
+            }
+
+            if ('tagsAND' in filters && (filters['tagsAND'] as []).length > 0) {
+                const tags = filters['tagsAND'] as [];
+                let obj: { [key: string]: any } = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } });
+                }
+
+                sqlOptions.where.AND.push(obj);
+            }
+
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: { 
+                    contains: filters['text_query'],
+                    mode: 'insensitive'
+                } });
+            }
         }
 
-        let albums = await this.prisma.album.findMany(options);
+        let albums = await this.prisma.album.findMany(sqlOptions as object);
 
         return albums.map((album) => {
             return {

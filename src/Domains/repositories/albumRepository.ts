@@ -6,9 +6,9 @@ import { Tag } from "../Models/Tag";
 
 export interface AlbumRepository {
     
-    selectAll() :Promise<Album[]>
+    selectAll(filters: object) :Promise<Album[]>
     
-    selectPage(skip: number, take: number) :Promise<Album[]>
+    selectPage(skip: number, take: number, filters: object) :Promise<Album[]>
     
     selectOneById(albumId: number) :Promise<Album | null>
     

@@ -11,16 +11,16 @@ export class AlbumsService {
         
     }
 
-    getAll() {
-        return this.albumRepository.selectAll();
+    getAll(filters: object) {
+        return this.albumRepository.selectAll(filters);
     }
 
-    getPage(page: number, limit: number) {
+    getPage(page: number, limit: number, filters: object) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
                 return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
             }
-            return this.albumRepository.selectPage((page-1)*limit, limit)
+            return this.albumRepository.selectPage((page-1)*limit, limit, filters)
         } catch (error) {
             return Errors.ErrorType.INCORRECT_PARAMETER;
         }

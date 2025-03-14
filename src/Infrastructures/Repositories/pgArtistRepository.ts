@@ -32,7 +32,10 @@ export class PgArtistRepository implements ArtistRepository {
             }
 
             if ('text_query' in filters) {
-                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+                sqlOptions.where.AND.push({ name: {
+                    contains: filters['text_query'],
+                    mode: 'insensitive'
+                } });
             }
         }
 

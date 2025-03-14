@@ -18,12 +18,11 @@ export default class AlbumController {
 
     async getAlbums(req: Request, res: Response) {
         let result;
-        console.log(req.body);
         
         if (req.body.page != null && req.body.limit != null) {
-            result = await this.getAlbumsService.getPage(req.body.page, req.body.limit);
+            result = await this.getAlbumsService.getPage(req.body.page, req.body.limit, req.body.filters);
         } else {
-            result = await this.getAlbumsService.getAll();
+            result = await this.getAlbumsService.getAll(req.body.filters);
         }
 
         if (result == Errors.ErrorType.INCORRECT_PARAMETER) {

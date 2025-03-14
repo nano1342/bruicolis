@@ -75,12 +75,8 @@ export class PgSongRepository implements SongRepository {
             if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
                 const tags = filters['tagsOR'] as [];
                 sqlOptions.where.AND.push(
-                    {
-                        TagLink: {
-                            some: {
-                                idTag: { in: tags }
-                            }
-                        }
+                    { TagLink: {
+                        some: { idTag: { in: tags } } }
                     }
                 );
             }
@@ -96,12 +92,11 @@ export class PgSongRepository implements SongRepository {
             }
 
             if ('text_query' in filters) {
-                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+                sqlOptions.where.AND.push({ name: {
+                    contains: filters['text_query'],
+                    mode: 'insensitive'
+                } });
             }
-
-            console.log(util.inspect(sqlOptions, {showHidden: false, depth: null, colors: true}))
-            songs = await this.prisma.song.findMany(sqlOptions as object);
-
         }
 
         songs = await this.prisma.song.findMany(sqlOptions as object);
