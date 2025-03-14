@@ -3,23 +3,24 @@ import { Album } from "../Domains/Models/Album";
 import { AlbumRepository } from "../Domains/repositories/albumRepository";
 import * as Errors from "../Utils/Errors";
 import { ResponseBody } from "../Utils/ResponseBody";
+import { TagRepository } from "../Domains/repositories/tagRepository";
 
 export class AlbumsService {
 
-    constructor(private readonly albumRepository:AlbumRepository) {
+    constructor(private readonly albumRepository:AlbumRepository, private readonly tagRepository:TagRepository) {
         
     }
 
-    getAll() {
-        return this.albumRepository.selectAll();
+    getAll(filters: object) {
+        return this.albumRepository.selectAll(filters);
     }
 
-    getPage(page: number, limit: number) {
+    getPage(page: number, limit: number, filters: object) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
                 return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
             }
-            return this.albumRepository.selectPage((page-1)*limit, limit)
+            return this.albumRepository.selectPage((page-1)*limit, limit, filters)
         } catch (error) {
             return Errors.ErrorType.INCORRECT_PARAMETER;
         }
@@ -65,5 +66,34 @@ export class AlbumsService {
             albums.push(await this.addAlbum(albumToInsert, id));
         }
         return albums;
-    }    
+    }
+
+    getTags(albumId: number) {
+        return this.albumRepository.selectTagsAll(albumId);
+    }
+    
+    async addTag(artistId: number, tagId: number) {
+            
+        //checking if the tag ID is correct
+        const tag = await this.tagRepository.selectOneById(tagId);
+        if (tag == null) {
+            return ResponseBody.getResponseBodyFail(
+                "The provided tag ID doesn't exist.",
+                Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER)
+            );
+        }
+    
+        //checking if the song already has that tag
+        const tags = await this.albumRepository.selectTagsAll(artistId);
+        if (tags == null) {
+            return ResponseBody.getResponseBodyFailDefault();
+        } else {
+            const existingTag = tags.find(tag => tag.id === tagId);
+            
+            if (existingTag) {
+                return ResponseBody.getResponseBodyOk("Tag was already attributed to this album. Nothing was modified.");
+            }
+        }
+        return this.albumRepository.insertTagLink(artistId, tagId);
+    }
 }

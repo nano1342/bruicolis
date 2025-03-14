@@ -44,7 +44,10 @@ export class PgSongRepository implements SongRepository {
             }
 
             if ('text_query' in filters) {
-                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+                sqlOptions.where.AND.push({ name: {
+                    contains: filters['text_query'],
+                    mode: 'insensitive'
+                } });
             }
         }
 
@@ -72,12 +75,8 @@ export class PgSongRepository implements SongRepository {
             if ('tagsOR' in filters && (filters['tagsOR'] as []).length > 0) {
                 const tags = filters['tagsOR'] as [];
                 sqlOptions.where.AND.push(
-                    {
-                        TagLink: {
-                            some: {
-                                idTag: { in: tags }
-                            }
-                        }
+                    { TagLink: {
+                        some: { idTag: { in: tags } } }
                     }
                 );
             }
@@ -93,12 +92,11 @@ export class PgSongRepository implements SongRepository {
             }
 
             if ('text_query' in filters) {
-                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+                sqlOptions.where.AND.push({ name: {
+                    contains: filters['text_query'],
+                    mode: 'insensitive'
+                } });
             }
-
-            console.log(util.inspect(sqlOptions, {showHidden: false, depth: null, colors: true}))
-            songs = await this.prisma.song.findMany(sqlOptions as object);
-
         }
 
         songs = await this.prisma.song.findMany(sqlOptions as object);
@@ -136,6 +134,7 @@ export class PgSongRepository implements SongRepository {
         } else {
             date = songToInsert.release_date;
         }
+        // TOFIX: ajoute une vérif sur le format de la date
         
         let newSong: Song = await this.prisma.song.create({
             data: {
@@ -170,9 +169,8 @@ export class PgSongRepository implements SongRepository {
      * @param tagId 
      * @returns {ResponseBody}
      */
-    async insertTag(songId: number, tagId: number) {
+    async insertTagLink(songId: number, tagId: number) {
         try {
-            
             let newTagLink: TagLink = await this.prisma.tagLink.create({
                 data: {
                     idTag: tagId,

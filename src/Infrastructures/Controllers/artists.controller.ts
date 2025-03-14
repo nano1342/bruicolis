@@ -18,12 +18,11 @@ export default class ArtistController {
 
     async getArtists(req: Request, res: Response) {
         let result;
-        console.log(req.body);
         
         if (req.body.page != null && req.body.limit != null) {
-            result = await this.getArtistsService.getPage(req.body.page, req.body.limit);
+            result = await this.getArtistsService.getPage(req.body.page, req.body.limit, req.body.filters);
         } else {
-            result = await this.getArtistsService.getAll();
+            result = await this.getArtistsService.getAll(req.body.filters);
         }
 
         if (result == Errors.ErrorType.INCORRECT_PARAMETER) {
@@ -127,6 +126,69 @@ export default class ArtistController {
         }
 
         const albumList = await this.getArtistsService.getAlbums(artist_id);
+        res.send(albumList);
+    }
+
+
+    /**
+     * Returns all tags associated to the artist.
+     * @param req 
+     * @param res 
+     */
+    async getArtistTags(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+        
+        //parsing the parameter
+        const artist_id = Number.parseInt(req.params['id']);
+        if (artist_id == null || Number.isNaN(artist_id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+
+        const albumList = await this.getArtistsService.getTags(artist_id);
+        res.send(albumList);
+    }
+
+
+    /**
+     * Returns all tags associated to the artist.
+     * @param req 
+     * @param res 
+     */
+    async addArtistTag(req: Request, res: Response) {
+        if (req.params['id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+        
+        const artist_id = Number.parseInt(req.params['id']);
+        if (artist_id == null || Number.isNaN(artist_id)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+        
+        if (req.body['tag_id'] == null) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_BODY_PARAMETER);
+            res.status(422).send(errorBody);
+            return;
+        }
+
+        const tagId = Number.parseInt(req.body['tag_id']);
+        
+        if (tagId == null || Number.isNaN(tagId)) {
+            const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER);
+            res.status(406).send(errorBody);
+            return;
+        }
+
+        const albumList = await this.getArtistsService.addTag(artist_id, tagId);
         res.send(albumList);
     }
 }
