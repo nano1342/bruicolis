@@ -128,21 +128,57 @@ export class PgSongRepository implements SongRepository {
     }
 
     async insertSong(songToInsert: SongModel, artistd: number) {
-        let date :Date;
-        if (typeof songToInsert.release_date == 'string') {
-            date = new Date(songToInsert.release_date);
+        let date: Date;
+
+        // On récupère la date sous forme de string si besoin
+        let dateStr: string;
+        if (typeof songToInsert.release_date === 'string') {
+            dateStr = songToInsert.release_date;
+        } else if (songToInsert.release_date instanceof Date) {
+            // On génère une string au format YYYY-MM-DD à partir de l'objet Date
+            dateStr = songToInsert.release_date.toISOString().split('T')[0];
         } else {
-            date = songToInsert.release_date;
+            return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
         }
-        // TOFIX: ajoute une vérif sur le format de la date
-        
+    
+        // Vérification du format : YYYY-MM-DD
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) {
+            return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
+        }
+    
+        const [year, month, day] = parts.map(Number);
+    
+        // Vérification des composants numériques de la date
+        if (
+            isNaN(year) || isNaN(month) || isNaN(day) ||
+            month < 1 || month > 12 || day < 1 || day > 31
+        ) {
+            return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
+        }
+    
+        // Création de l'objet Date et validation finale
+        date = new Date(dateStr);
+    
+        if (isNaN(date.getTime())) {
+            return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
+        }
+    
+        // Double check que la date correspond à la string d'entrée
+        const isoDatePart = date.toISOString().split('T')[0];
+        if (isoDatePart !== dateStr) {
+            return Errors.ErrorType.INCORRECT_BODY_PARAMETER;
+        }
+    
+        console.log(date.toISOString());
+    
+        // Insère la chanson dans la BDD
         let newSong: Song = await this.prisma.song.create({
             data: {
-              name: songToInsert.name,
-              releaseDate: date.toISOString()
+                name: songToInsert.name,
+                releaseDate: date.toISOString()
             }
         });
-
         try {
             let newSongArtistLink: SongArtistLink = await this.prisma.songArtistLink.create({
                 data: {
