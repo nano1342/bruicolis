@@ -133,8 +133,8 @@ function start() {
  */
 let getTruncatedName = (name: string, maxLength: number) => {
     let n = name;
-    if (n.length > 255) {
-        n = n.substring(0, 255);
+    if (n.length > maxLength) {
+        n = n.substring(0, maxLength);
         console.warn(`truncated name: ${name}\n\t-->${n}`);
     }
     return n;
