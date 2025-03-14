@@ -1,7 +1,8 @@
-import { Album, PrismaClient, ArtistAlbumLink } from "@prisma/client";
+import { Album, PrismaClient, ArtistAlbumLink, SongAlbumLink } from "@prisma/client";
 import { Album as AlbumModel } from "../../Domains/Models/Album";
 import { AlbumRepository } from "../../Domains/repositories/albumRepository";
 import * as Errors from "../../Utils/Errors";
+import { ResponseBody } from "../../Utils/ResponseBody";
 
 export class PgAlbumRepository implements AlbumRepository {
     
@@ -73,6 +74,25 @@ export class PgAlbumRepository implements AlbumRepository {
                 release_date: song.releaseDate
             }
         })
+    }
+
+    async insertSongLink(albumId: number, songId: number) {
+
+        let newSongAlbumLink: SongAlbumLink;
+
+        try {
+            newSongAlbumLink = await this.prisma.songAlbumLink.create({
+                data: {
+                    albumId: albumId,
+                    songId: songId
+                }
+            });
+        } catch (PrismaClientKnownRequestError) {
+            return ResponseBody.getResponseBodyFail("Something went wrong.", Errors.getErrorBodyDefault(Errors.ErrorType.FOREIGN_KEY_NOT_FOUND));
+        }
+  
+          const respBody = ResponseBody.getResponseBodyOkWithObject("Song successfully added to the album.", newSongAlbumLink);
+          return respBody;
     }
 
     async insertAlbum(albumToInsert: AlbumModel, artistd: number) {

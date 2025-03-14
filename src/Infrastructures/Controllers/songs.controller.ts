@@ -115,7 +115,6 @@ export default class SongController {
         }
 
         const tagId = Number.parseInt(req.body['tag_id']);
-        console.log(req.body['tag_id'], tagId);
         
         if (tagId == null || Number.isNaN(tagId)) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER);
@@ -125,14 +124,6 @@ export default class SongController {
         
         
         const respBody = await this.getSongsService.addTag(id, tagId);
-        console.log(respBody);
-        
-        // let respBody;
-        // if (succeed == null) {
-        //     const respBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
-        //     res.status(404).send(respBody);
-        //     return;
-        // }
 
         res.send(respBody);
     }
@@ -160,12 +151,6 @@ export default class SongController {
         
         
         const respBody = await this.getSongsService.getTags(id);
-        // let respBody;
-        // if (succeed == null) {
-        //     const respBody = Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND);
-        //     res.status(404).send(respBody);
-        //     return;
-        // }
 
         res.send(respBody);
     }

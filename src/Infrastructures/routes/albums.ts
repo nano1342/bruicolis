@@ -11,4 +11,6 @@ router.get("/:id", albumController.getAlbum.bind(albumController));
 
 router.get("/:id/songs", albumController.getAlbumSongs.bind(albumController));
 
+router.post("/:id/songs", albumController.addAlbumSong.bind(albumController));
+
 export default router;
