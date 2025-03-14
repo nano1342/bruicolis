@@ -7,3 +7,4 @@ script/**/*.js
 musicbrainzMapping.db
 # musicbrainzMapping.db-journal
 musicbrainzMapping.db-*
+dist/
