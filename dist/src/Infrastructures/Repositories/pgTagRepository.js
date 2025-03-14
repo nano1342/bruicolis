@@ -45,6 +45,21 @@ class PgTagRepository {
             musicbrainzId: tag.musicbrainzId,
         };
     }
+    async selectOneByMusicbrainzId(tagId) {
+        let tag = await this.prisma.tag.findFirst({ where: {
+                musicbrainzId: tagId,
+            },
+        });
+        if (tag == null) {
+            return null;
+        }
+        ;
+        return {
+            id: tag.id,
+            label: tag.label,
+            musicbrainzId: tag.musicbrainzId,
+        };
+    }
     async selectTagSongs(tagId) {
         let songs = await this.prisma.song.findMany({
             where: {

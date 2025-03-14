@@ -35,21 +35,24 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GetArtistsService = void 0;
 const Errors = __importStar(require("../Utils/Errors"));
+const ResponseBody_1 = require("../Utils/ResponseBody");
 //potentiellement renommer en service
 class GetArtistsService {
     artistRepository;
-    constructor(artistRepository) {
+    tagRepository;
+    constructor(artistRepository, tagRepository) {
         this.artistRepository = artistRepository;
+        this.tagRepository = tagRepository;
     }
-    getAll() {
-        return this.artistRepository.selectAll();
+    getAll(filters) {
+        return this.artistRepository.selectAll(filters);
     }
-    getPage(page, limit) {
+    getPage(page, limit, filters) {
         try {
             if (Number.isNaN(page) || Number.isNaN(limit) || page < 1) {
                 return Errors.ErrorType.INCORRECT_PARAMETER;
             }
-            return this.artistRepository.selectPage((page - 1) * limit, limit);
+            return this.artistRepository.selectPage((page - 1) * limit, limit, filters);
         }
         catch (error) {
             return Errors.ErrorType.INCORRECT_PARAMETER;
@@ -60,6 +63,28 @@ class GetArtistsService {
     }
     getAlbums(artistId) {
         return this.artistRepository.selectAlbumsAll(artistId);
+    }
+    getTags(artistId) {
+        return this.artistRepository.selectTagsAll(artistId);
+    }
+    async addTag(artistId, tagId) {
+        //checking if the tag ID is correct
+        const tag = await this.tagRepository.selectOneById(tagId);
+        if (tag == null) {
+            return ResponseBody_1.ResponseBody.getResponseBodyFail("The provided tag ID doesn't exist.", Errors.getErrorBodyDefault(Errors.ErrorType.INCORRECT_BODY_PARAMETER));
+        }
+        //checking if the song already has that tag
+        const tags = await this.artistRepository.selectTagsAll(artistId);
+        if (tags == null) {
+            return ResponseBody_1.ResponseBody.getResponseBodyFailDefault();
+        }
+        else {
+            const existingTag = tags.find(tag => tag.id === tagId);
+            if (existingTag) {
+                return ResponseBody_1.ResponseBody.getResponseBodyOk("Tag was already attributed to this artist. Nothing was modified.");
+            }
+        }
+        return this.artistRepository.insertTagLink(artistId, tagId);
     }
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     getOneById(artistId) {

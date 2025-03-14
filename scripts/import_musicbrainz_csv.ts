@@ -5,6 +5,7 @@ import {
     albumsService,
     tagService
 } from "../src/dependencies";
+import { ErrorType } from "../src/Utils/Errors";
 
 // import artists csv from file
 import { parse } from "csv-parse";
@@ -53,6 +54,9 @@ const mediumCsv = path.resolve(root, "out_medium.csv");
 const releaseCsv = path.resolve(root, "out_release.csv");
 const releaseCountryCsv = path.resolve(root, "out_release_country.csv");
 const tagsCsv = path.resolve(root, "out_tag.csv");
+const artistTagCsv = path.resolve(root, "out_artist_tag.csv");
+const releaseTagCsv = path.resolve(root, "out_release_tag.csv");
+const recordingTagCsv = path.resolve(root, "out_recording_tag.csv");
 
 interface ReleaseDate {
     year: number;
@@ -65,7 +69,49 @@ const MAX_SONGS = 5_000;
 const MAX_MAPPINGS = 200_000;
 const MAX_ALBUMS = 5_000;
 const MAX_TAGS = 5_000;
-const MEASURE_PERFORMANCE = true;
+const MAX_TAG_ARTIST_BINDINGS = 100_000;
+const MEASURE_PERFORMANCE = false;
+
+/**
+ * Based on https://musicbrainz.org/statistics on 2025-03-14
+ */
+const TOTAL = {
+    ARTISTS: 2_566_990,
+    /**
+     * recordings
+     */
+    SONGS: 34_724_402,
+    /**
+     * releases
+     */
+    ALBUMS: 4_642_010,
+    TAGS: 220_810,
+
+
+    TRACK_MAPPINGS: 49_351_430,
+    MEDIUM_MAPPINGS: 5_137_294,
+    RELEASE_MAPPINGS: 4_642_010,
+    RELEASE_DATE_MAPPINGS: 12_836_534,
+
+    TAG_ARTIST_BINDINGS: 609_703,
+}
+
+function percent(ratio: number) {
+    return Math.round(ratio /*to percent*/ * 100 /*round 2 digits*/ * 100) / 100;
+}
+function logMax(max: number, total: number, name: string) {
+    console.info(`exploring at most ${max} ${name} entries of ${total} potential entries (${percent(max/total)}%)`)
+}
+
+logMax(MAX_ARTISTS, TOTAL.ARTISTS, "artist");
+logMax(MAX_ALBUMS, TOTAL.ALBUMS, "album");
+logMax(MAX_SONGS, TOTAL.SONGS, "song");
+logMax(MAX_TAGS, TOTAL.TAGS, "tag");
+logMax(MAX_MAPPINGS, TOTAL.TRACK_MAPPINGS, "track mapping");
+logMax(MAX_MAPPINGS, TOTAL.MEDIUM_MAPPINGS, "medium mapping");
+logMax(MAX_MAPPINGS, TOTAL.RELEASE_MAPPINGS, "release mapping");
+logMax(MAX_MAPPINGS, TOTAL.RELEASE_DATE_MAPPINGS, "release date mapping");
+logMax(MAX_TAG_ARTIST_BINDINGS, TOTAL.TAG_ARTIST_BINDINGS, "tag artist binding")
 
 function read(
     path: unknown,
@@ -112,6 +158,15 @@ function start() {
     );
     db.exec(
         "CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)"
+    );
+    db.exec(
+        "CREATE TABLE tag_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)"
+    );
+    db.exec(
+        "CREATE TABLE album_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)"
+    );
+    db.exec(
+        "CREATE TABLE song_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)"
     );
 
     importArtists();
@@ -386,7 +441,14 @@ function importSongs() {
                             },
                             dbArtistIds
                         )
-                        .then(() => {
+                        .then((song) => {
+                            song.forEach((s) => {
+                                if (s !== null && !(typeof s === "string")) {
+                                    db.prepare(
+                                        "INSERT INTO song_musicbrainz_to_db_id VALUES (?, ?)"
+                                    ).run(recordingId, s.id);
+                                }
+                            })
                             acknowledgedSongs++;
                             if (MEASURE_PERFORMANCE) {
                                 perfEnd(songPerfTimings.get(name), "addSong");
@@ -469,6 +531,27 @@ function findArtistIdByMusicBrainzId(id: number): { id: number } | undefined {
         )
         .get(id) as { id: number } | undefined;
 }
+function findSongIdByMusicBrainzId(id: number): { id: number } | undefined {
+    return db
+        .prepare(
+            "SELECT id FROM song_musicbrainz_to_db_id WHERE musicbrainz_id = ?"
+        )
+        .get(id) as { id: number } | undefined;
+}
+function findAlbumIdByMusicBrainzId(id: number): { id: number } | undefined {
+    return db
+        .prepare(
+            "SELECT id FROM album_musicbrainz_to_db_id WHERE musicbrainz_id = ?"
+        )
+        .get(id) as { id: number } | undefined;
+}
+function findTagIdByMusicBrainzId(id: number): { id: number } | undefined {
+    return db
+        .prepare(
+            "SELECT id FROM tag_musicbrainz_to_db_id WHERE musicbrainz_id = ?"
+        )
+        .get(id) as { id: number } | undefined;
+}
 
 function mapArtistCreditToArtists(artistCredit: number): number[] {
     return db
@@ -522,8 +605,8 @@ function importAlbums() {
                 // TODO uncomment this line
                 return;
             }
-            const recordingId = parseInt(r[0]);
-            const date = getReleaseFirstReleaseDate(recordingId);
+            const releaseId = parseInt(r[0]);
+            const date = getReleaseFirstReleaseDate(releaseId);
 
             try {
                 expectedAlbums++;
@@ -540,9 +623,15 @@ function importAlbums() {
                             },
                             dbArtistIds
                         )
-                        .then(() => {
+                        .then((album) => {
+                            album.forEach((a) => {
+                                if (a !== null && !(typeof a === "string")) {
+                                    db.prepare(
+                                        "INSERT INTO album_musicbrainz_to_db_id VALUES (?, ?)"
+                                    ).run(releaseId, a.id);
+                                }
+                            })
                             acknowledgedAlbums++;
-                            const perf = albumPerfTimings.get(name);
                             if (MEASURE_PERFORMANCE) {
                                 perfEnd(albumPerfTimings.get(name), "addAlbum");
                                 albumPerfTimings.delete(name);
@@ -615,7 +704,7 @@ function importTags() {
         ondata: (r, stream) => {
             // log progress
             i++;
-            if (i % 1000 === 0 && i <= MAX_TAGS) {
+            if (i % 5000 === 0 && i <= MAX_TAGS) {
                 console.log(i);
             }
             if (i > MAX_TAGS) {
@@ -640,7 +729,12 @@ function importTags() {
                                 musicbrainzId: tagId,
                             },
                         )
-                        .then(() => {
+                        .then((tag) => {
+                            if (tag !== null && !(typeof tag === "string")) {
+                                db.prepare(
+                                    "INSERT INTO tag_musicbrainz_to_db_id VALUES (?, ?)"
+                                ).run(tagId, tag.id);
+                            }
                             acknowledgedTags++;
                             const perf = tagPerfTimings.get(name);
                             if (MEASURE_PERFORMANCE) {
@@ -661,11 +755,66 @@ function importTags() {
                 if (acknowledgedTags === expectedTags) {
                     clearInterval(interval);
                     console.log("tags imported.");
+                    bindArtistsAndTags();
+                }
+            }, 1000);
+        },
+    });
+}
+
+let expectedArtistTags = 0;
+let acknowledgedArtistTags = 0;
+function bindArtistsAndTags() {
+    console.log("=== binding artists and tags...");
+    asyncLocalStorage = new AsyncLocalStorage();
+    let i = 0;
+
+    read(artistTagCsv, {
+        ondata: (r, stream) => {
+            // log progress
+            i++;
+            if (i % 5000 === 0 && i <= MAX_TAG_ARTIST_BINDINGS) {
+                console.log(i);
+            }
+            if (i > MAX_TAG_ARTIST_BINDINGS) {
+                stream.destroy();
+                return;
+            }
+
+            const artistId = parseInt(r[0]);
+            const tagId = parseInt(r[1]);
+            const dbArtistId = findArtistIdByMusicBrainzId(artistId)?.id;
+            const dbTagId = findTagIdByMusicBrainzId(tagId)?.id;
+            if (dbArtistId === undefined || dbTagId === undefined ) {
+                return;
+            }
+
+            try {
+                expectedArtistTags++;
+                asyncLocalStorage.run({ i }, () => {
+                    getArtistsService.addTag(dbArtistId, dbTagId)
+                        .then(() => {
+                            acknowledgedArtistTags++;
+                        });
+                });
+            } catch (e) {
+                console.error("failed to import tag", r, e);
+            }
+        },
+        onendorclose: () => {
+            const interval = setInterval(() => {
+                console.log(
+                    `acknowledged artist tags: ${acknowledgedArtistTags}/${expectedArtistTags}`
+                );
+                if (acknowledgedArtistTags === expectedArtistTags) {
+                    clearInterval(interval);
+                    console.log("artist tags imported.");
                     finish();
                 }
             }, 1000);
         },
     });
+
 }
 
 function finish() {

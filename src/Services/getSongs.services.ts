@@ -44,6 +44,7 @@ export class GetSongsService {
         }
         let songs: (Song | Errors.ErrorType | null)[] = [];
         for (const id of artistIds) {
+            //FIXME imports the same song multiple times
             songs.push(await this.addSong(songToInsert, id));
         }
         return songs;

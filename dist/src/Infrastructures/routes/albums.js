@@ -8,4 +8,6 @@ router.post("/", dependencies_1.albumController.addAlbum.bind(dependencies_1.alb
 router.get("/:id", dependencies_1.albumController.getAlbum.bind(dependencies_1.albumController));
 router.get("/:id/songs", dependencies_1.albumController.getAlbumSongs.bind(dependencies_1.albumController));
 router.post("/:id/songs", dependencies_1.albumController.addAlbumSong.bind(dependencies_1.albumController));
+router.get("/:id/tags", dependencies_1.albumController.getAlbumTags.bind(dependencies_1.albumController));
+router.post("/:id/tags", dependencies_1.albumController.addAlbumTag.bind(dependencies_1.albumController));
 exports.default = router;

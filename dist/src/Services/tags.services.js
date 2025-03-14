@@ -59,6 +59,10 @@ class TagsService {
         //vérifications préalables avant requête
         return this.tagRepository.selectOneById(tagId);
     }
+    getOneByMusicbrainzId(tagId) {
+        //vérifications préalables avant requête
+        return this.tagRepository.selectOneByMusicbrainzId(tagId);
+    }
     //execute ne sera pas le bon nom dans le cas ou on fait des vérifs supplémentaires dans execute
     addTag(tagToInsert) {
         //vérifications préalables avant requête

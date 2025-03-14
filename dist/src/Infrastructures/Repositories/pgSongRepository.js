@@ -36,7 +36,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PgSongRepository = void 0;
 const Errors = __importStar(require("../../Utils/Errors"));
 const ResponseBody_1 = require("../../Utils/ResponseBody");
-const util = __importStar(require("util"));
 //TODO ajouter objet de lien SongArtistLink
 class PgSongRepository {
     prisma;
@@ -70,7 +69,10 @@ class PgSongRepository {
                 sqlOptions.where.AND.push(obj);
             }
             if ('text_query' in filters) {
-                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+                sqlOptions.where.AND.push({ name: {
+                        contains: filters['text_query'],
+                        mode: 'insensitive'
+                    } });
             }
         }
         songs = await this.prisma.song.findMany(sqlOptions);
@@ -92,11 +94,8 @@ class PgSongRepository {
             sqlOptions.where = { AND: [] };
             if ('tagsOR' in filters && filters['tagsOR'].length > 0) {
                 const tags = filters['tagsOR'];
-                sqlOptions.where.AND.push({
-                    TagLink: {
-                        some: {
-                            idTag: { in: tags }
-                        }
+                sqlOptions.where.AND.push({ TagLink: {
+                        some: { idTag: { in: tags } }
                     }
                 });
             }
@@ -109,10 +108,11 @@ class PgSongRepository {
                 sqlOptions.where.AND.push(obj);
             }
             if ('text_query' in filters) {
-                sqlOptions.where.AND.push({ name: { contains: filters['text_query'] } });
+                sqlOptions.where.AND.push({ name: {
+                        contains: filters['text_query'],
+                        mode: 'insensitive'
+                    } });
             }
-            console.log(util.inspect(sqlOptions, { showHidden: false, depth: null, colors: true }));
-            songs = await this.prisma.song.findMany(sqlOptions);
         }
         songs = await this.prisma.song.findMany(sqlOptions);
         return songs.map((song) => {
@@ -146,6 +146,7 @@ class PgSongRepository {
         else {
             date = songToInsert.release_date;
         }
+        // TOFIX: ajoute une vérif sur le format de la date
         let newSong = await this.prisma.song.create({
             data: {
                 name: songToInsert.name,
@@ -176,7 +177,7 @@ class PgSongRepository {
      * @param tagId
      * @returns {ResponseBody}
      */
-    async insertTag(songId, tagId) {
+    async insertTagLink(songId, tagId) {
         try {
             let newTagLink = await this.prisma.tagLink.create({
                 data: {

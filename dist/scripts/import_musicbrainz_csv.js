@@ -8,15 +8,7 @@ const dependencies_1 = require("../src/dependencies");
 // import artists csv from file
 const csv_parse_1 = require("csv-parse");
 const perf_hooks_1 = require("perf_hooks");
-// const {
-//     performance,
-//     PerformanceObserver,
-// }: {
-//     performance: Performance;
-//     PerformanceObserver: any;
-// } = require("node:perf_hooks");
 const async_hooks_1 = require("async_hooks");
-// const { AsyncLocalStorage } = require("node:async_hooks");
 /**
  * needs to be reset for each async operation
  */
@@ -45,17 +37,51 @@ const mediumCsv = path.resolve(root, "out_medium.csv");
 const releaseCsv = path.resolve(root, "out_release.csv");
 const releaseCountryCsv = path.resolve(root, "out_release_country.csv");
 const tagsCsv = path.resolve(root, "out_tag.csv");
-// not enough memory, using sqlite
-// const artistCreditToArtist = new Map<number, number[]>();
-// const recordingToMedium = new Map<number, number[]>();
-// const mediumToRelease = new Map<number, number[]>();
-// const releaseToReleaseDate = new Map<number, ReleaseDate[]>();
+const artistTagCsv = path.resolve(root, "out_artist_tag.csv");
+const releaseTagCsv = path.resolve(root, "out_release_tag.csv");
+const recordingTagCsv = path.resolve(root, "out_recording_tag.csv");
 const MAX_ARTISTS = 10_000;
 const MAX_SONGS = 5_000;
 const MAX_MAPPINGS = 200_000;
 const MAX_ALBUMS = 5_000;
 const MAX_TAGS = 5_000;
-const MEASURE_PERFORMANCE = true;
+const MAX_TAG_ARTIST_BINDINGS = 100_000;
+const MEASURE_PERFORMANCE = false;
+/**
+ * Based on https://musicbrainz.org/statistics on 2025-03-14
+ */
+const TOTAL = {
+    ARTISTS: 2_566_990,
+    /**
+     * recordings
+     */
+    SONGS: 34_724_402,
+    /**
+     * releases
+     */
+    ALBUMS: 4_642_010,
+    TAGS: 220_810,
+    TRACK_MAPPINGS: 49_351_430,
+    MEDIUM_MAPPINGS: 5_137_294,
+    RELEASE_MAPPINGS: 4_642_010,
+    RELEASE_DATE_MAPPINGS: 12_836_534,
+    TAG_ARTIST_BINDINGS: 609_703,
+};
+function percent(ratio) {
+    return Math.round(ratio /*to percent*/ * 100 /*round 2 digits*/ * 100) / 100;
+}
+function logMax(max, total, name) {
+    console.info(`exploring at most ${max} ${name} entries of ${total} potential entries (${percent(max / total)}%)`);
+}
+logMax(MAX_ARTISTS, TOTAL.ARTISTS, "artist");
+logMax(MAX_ALBUMS, TOTAL.ALBUMS, "album");
+logMax(MAX_SONGS, TOTAL.SONGS, "song");
+logMax(MAX_TAGS, TOTAL.TAGS, "tag");
+logMax(MAX_MAPPINGS, TOTAL.TRACK_MAPPINGS, "track mapping");
+logMax(MAX_MAPPINGS, TOTAL.MEDIUM_MAPPINGS, "medium mapping");
+logMax(MAX_MAPPINGS, TOTAL.RELEASE_MAPPINGS, "release mapping");
+logMax(MAX_MAPPINGS, TOTAL.RELEASE_DATE_MAPPINGS, "release date mapping");
+logMax(MAX_TAG_ARTIST_BINDINGS, TOTAL.TAG_ARTIST_BINDINGS, "tag artist binding");
 function read(path, callbacks) {
     const stream = fs.createReadStream(path);
     let endOrCloseSent = false; // both events are not mutually exclusive
@@ -78,12 +104,16 @@ function start() {
     }
     db = new better_sqlite3_1.default("musicbrainzMapping.db");
     db.pragma("journal_mode = WAL");
+    // not enough memory in nodeJS with Maps, using sqlite instead
     // setup maps
     db.exec("CREATE TABLE artist_credit_to_artist (artist_credit INTEGER, artist INTEGER)");
     db.exec("CREATE TABLE recording_to_medium (recording INTEGER, medium INTEGER)");
     db.exec("CREATE TABLE medium_to_release (medium INTEGER, release INTEGER)");
     db.exec("CREATE TABLE release_to_release_date (release INTEGER, date DATETIME)");
     db.exec("CREATE TABLE artist_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
+    db.exec("CREATE TABLE tag_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
+    db.exec("CREATE TABLE album_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
+    db.exec("CREATE TABLE song_musicbrainz_to_db_id (musicbrainz_id INTEGER, id INTEGER)");
     importArtists();
 }
 /**
@@ -176,7 +206,6 @@ function buildArtistCreditMappings() {
             // so we can directly map one artist credti to n artists
             const artistCredit = parseInt(r[0]);
             const artist = parseInt(r[2]);
-            // pushToArrayOrInitInMap(artistCreditToArtist, artistCredit, artist);
             db.prepare("INSERT INTO artist_credit_to_artist VALUES (?, ?)").run(artistCredit, artist);
         },
         onendorclose: () => {
@@ -201,7 +230,6 @@ function buildTrackMappings() {
             }
             const recording = parseInt(r[2]);
             const medium = parseInt(r[3]);
-            // pushToArrayOrInitInMap(recordingToMedium, recording, medium);
             db.prepare("INSERT INTO recording_to_medium VALUES (?, ?)").run(recording, medium);
         },
         onendorclose: () => {
@@ -226,7 +254,6 @@ function buildMediumToReleaseMappings() {
             }
             const medium = parseInt(r[0]);
             const release = parseInt(r[1]);
-            // pushToArrayOrInitInMap(mediumToRelease, medium, release);
             db.prepare("INSERT INTO medium_to_release VALUES (?, ?)").run(medium, release);
         },
         onendorclose: () => {
@@ -255,7 +282,6 @@ function buildReleaseToReleaseCountryMappings() {
                 month: parseInt(r[3]),
                 day: parseInt(r[4]),
             };
-            // pushToArrayOrInitInMap(releaseToReleaseDate, release, releaseDate);
             db.prepare("INSERT INTO release_to_release_date VALUES (?, ?)").run(release, convertToDate(releaseDate).toISOString());
         },
         onendorclose: () => {
@@ -264,14 +290,6 @@ function buildReleaseToReleaseCountryMappings() {
         },
     });
 }
-// function pushToArrayOrInitInMap<K, V>(map: Map<K, V[]>, key: K, value: V) {
-//     if (!map.has(key)) {
-//         map.set(key, []);
-//     }
-//     let array = map.get(key)!;
-//     array.push(value);
-//     map.set(key, array);
-// }
 let expectedSongs = 0;
 let acknowledgedSongs = 0;
 let songPerfTimings = new Map();
@@ -310,9 +328,7 @@ function importSongs() {
                 return;
             }
             const recordingId = parseInt(r[0]);
-            // const releaseDate = getRecordingFirstReleaseDate(recordingId);
             const date = getRecordingFirstReleaseDate(recordingId);
-            // const date = convertToDate(releaseDate);
             try {
                 expectedSongs++;
                 asyncLocalStorage.run({ i }, () => {
@@ -326,7 +342,12 @@ function importSongs() {
                         name,
                         release_date: date === null ? new Date(0) : date,
                     }, dbArtistIds)
-                        .then(() => {
+                        .then((song) => {
+                        song.forEach((s) => {
+                            if (s !== null && !(typeof s === "string")) {
+                                db.prepare("INSERT INTO song_musicbrainz_to_db_id VALUES (?, ?)").run(recordingId, s.id);
+                            }
+                        });
                         acknowledgedSongs++;
                         if (MEASURE_PERFORMANCE) {
                             perfEnd(songPerfTimings.get(name), "addSong");
@@ -351,53 +372,6 @@ function importSongs() {
         },
     });
 }
-// function getRecordingFirstReleaseDate(recordingId: number): ReleaseDate | null {
-//     const medium = recordingToMedium.get(recordingId);
-//     if (medium === undefined || medium.length === 0) {
-//         return null;
-//     }
-//     let releases: number[] = [];
-//     for (const m of medium) {
-//         const mediumReleases = mediumToRelease.get(m);
-//         if (mediumReleases !== undefined) {
-//             releases.concat(mediumReleases);
-//         }
-//     }
-//     if (releases.length === 0) {
-//         return null;
-//     }
-//     let releaseDates: ReleaseDate[] = [];
-//     for (const r of releases) {
-//         const rDates = releaseToReleaseDate.get(r);
-//         if (rDates !== undefined) {
-//             releaseDates.concat(rDates);
-//         }
-//     }
-//     if (releaseDates.length === 0) {
-//         return null;
-//     } else {
-//         return releaseDates.reduce((acc, current) => {
-//             // find the earliest date
-//             if (acc.year < current.year) {
-//                 return acc;
-//             } else if (acc.year > current.year) {
-//                 return current;
-//             } else {
-//                 if (acc.month < current.month) {
-//                     return acc;
-//                 } else if (acc.month > current.month) {
-//                     return current;
-//                 } else {
-//                     if (acc.day < current.day) {
-//                         return acc;
-//                     } else {
-//                         return current;
-//                     }
-//                 }
-//             }
-//         })
-//     }
-// }
 const getRecordingFirstReleaseDateCache = new Map();
 const getReleaseFirstReleaseDateCache = new Map();
 /**
@@ -407,22 +381,8 @@ let getRecordingFirstReleaseDate = (recordingId) => {
     if (getRecordingFirstReleaseDateCache.has(recordingId)) {
         return getRecordingFirstReleaseDateCache.get(recordingId);
     }
-    // const releaseDates: ReleaseDate[] = [];
     const stmt = db.prepare("SELECT MIN(date) FROM recording_to_medium NATURAL JOIN medium_to_release NATURAL JOIN release_to_release_date WHERE recording = ?");
-    // for (const row of stmt.iterate(recordingId)) {
-    //     const r = row as { year: number; month: number; day: number };
-    //     releaseDates.push({
-    //         year: r.year,
-    //         month: r.month,
-    //         day: r.day,
-    //     });
-    // }
     let date = null;
-    // if (releaseDates.length === 0) {
-    //     date = null;
-    // } else {
-    //     date = getMinimumDate(releaseDates);
-    // }
     const result = stmt.get(recordingId);
     if (result === undefined) {
         date = null;
@@ -440,23 +400,8 @@ let getReleaseFirstReleaseDate = (releaseId) => {
     if (getReleaseFirstReleaseDateCache.has(releaseId)) {
         return getReleaseFirstReleaseDateCache.get(releaseId);
     }
-    // const releaseDates: ReleaseDate[] = [];
     const stmt = db.prepare("SELECT MIN(date) FROM release_to_release_date WHERE release = ?");
-    // for (const row of stmt.iterate(releaseId)) {
-    //     const r = row as { year: number; month: number; day: number };
-    //     releaseDates.push({
-    //         year: r.year,
-    //         month: r.month,
-    //         day: r.day,
-    //     });
-    // }
     let date = null;
-    // let date: ReleaseDate | null = null;
-    // if (releaseDates.length === 0) {
-    //     date = null;
-    // } else {
-    //     date = getMinimumDate(releaseDates);
-    // }
     const result = stmt.get(releaseId);
     if (result === undefined) {
         date = null;
@@ -467,36 +412,24 @@ let getReleaseFirstReleaseDate = (releaseId) => {
     getReleaseFirstReleaseDateCache.set(releaseId, date);
     return date;
 };
-function getMinimumDate(releaseDates) {
-    return releaseDates.reduce((acc, current) => {
-        // find the earliest date
-        if (acc.year < current.year) {
-            return acc;
-        }
-        else if (acc.year > current.year) {
-            return current;
-        }
-        else {
-            if (acc.month < current.month) {
-                return acc;
-            }
-            else if (acc.month > current.month) {
-                return current;
-            }
-            else {
-                if (acc.day < current.day) {
-                    return acc;
-                }
-                else {
-                    return current;
-                }
-            }
-        }
-    });
-}
 function findArtistIdByMusicBrainzId(id) {
     return db
         .prepare("SELECT id FROM artist_musicbrainz_to_db_id WHERE musicbrainz_id = ?")
+        .get(id);
+}
+function findSongIdByMusicBrainzId(id) {
+    return db
+        .prepare("SELECT id FROM song_musicbrainz_to_db_id WHERE musicbrainz_id = ?")
+        .get(id);
+}
+function findAlbumIdByMusicBrainzId(id) {
+    return db
+        .prepare("SELECT id FROM album_musicbrainz_to_db_id WHERE musicbrainz_id = ?")
+        .get(id);
+}
+function findTagIdByMusicBrainzId(id) {
+    return db
+        .prepare("SELECT id FROM tag_musicbrainz_to_db_id WHERE musicbrainz_id = ?")
         .get(id);
 }
 function mapArtistCreditToArtists(artistCredit) {
@@ -545,10 +478,8 @@ function importAlbums() {
                 // TODO uncomment this line
                 return;
             }
-            const recordingId = parseInt(r[0]);
-            // const releaseDate = getReleaseFirstReleaseDate(recordingId);
-            // const date = convertToDate(releaseDate);
-            const date = getReleaseFirstReleaseDate(recordingId);
+            const releaseId = parseInt(r[0]);
+            const date = getReleaseFirstReleaseDate(releaseId);
             try {
                 expectedAlbums++;
                 asyncLocalStorage.run({ i }, () => {
@@ -561,9 +492,13 @@ function importAlbums() {
                         name,
                         release_date: date === null ? new Date(0) : date,
                     }, dbArtistIds)
-                        .then(() => {
+                        .then((album) => {
+                        album.forEach((a) => {
+                            if (a !== null && !(typeof a === "string")) {
+                                db.prepare("INSERT INTO album_musicbrainz_to_db_id VALUES (?, ?)").run(releaseId, a.id);
+                            }
+                        });
                         acknowledgedAlbums++;
-                        const perf = albumPerfTimings.get(name);
                         if (MEASURE_PERFORMANCE) {
                             perfEnd(albumPerfTimings.get(name), "addAlbum");
                             albumPerfTimings.delete(name);
@@ -586,9 +521,6 @@ function importAlbums() {
             }, 1000);
         },
     });
-    // // import album ===
-    // let name = getTruncatedName(r[2], 255); // name is the 3rd field in the csv
-    // const artistCredit = parseInt(r[3]);
 }
 /**
  * @satisfies timerify friendly
@@ -635,7 +567,7 @@ function importTags() {
         ondata: (r, stream) => {
             // log progress
             i++;
-            if (i % 1000 === 0 && i <= MAX_TAGS) {
+            if (i % 5000 === 0 && i <= MAX_TAGS) {
                 console.log(i);
             }
             if (i > MAX_TAGS) {
@@ -655,7 +587,10 @@ function importTags() {
                         label: name,
                         musicbrainzId: tagId,
                     })
-                        .then(() => {
+                        .then((tag) => {
+                        if (tag !== null && !(typeof tag === "string")) {
+                            db.prepare("INSERT INTO tag_musicbrainz_to_db_id VALUES (?, ?)").run(tagId, tag.id);
+                        }
                         acknowledgedTags++;
                         const perf = tagPerfTimings.get(name);
                         if (MEASURE_PERFORMANCE) {
@@ -675,6 +610,55 @@ function importTags() {
                 if (acknowledgedTags === expectedTags) {
                     clearInterval(interval);
                     console.log("tags imported.");
+                    bindArtistsAndTags();
+                }
+            }, 1000);
+        },
+    });
+}
+let expectedArtistTags = 0;
+let acknowledgedArtistTags = 0;
+function bindArtistsAndTags() {
+    console.log("=== binding artists and tags...");
+    asyncLocalStorage = new async_hooks_1.AsyncLocalStorage();
+    let i = 0;
+    read(artistTagCsv, {
+        ondata: (r, stream) => {
+            // log progress
+            i++;
+            if (i % 5000 === 0 && i <= MAX_TAG_ARTIST_BINDINGS) {
+                console.log(i);
+            }
+            if (i > MAX_TAG_ARTIST_BINDINGS) {
+                stream.destroy();
+                return;
+            }
+            const artistId = parseInt(r[0]);
+            const tagId = parseInt(r[1]);
+            const dbArtistId = findArtistIdByMusicBrainzId(artistId)?.id;
+            const dbTagId = findTagIdByMusicBrainzId(tagId)?.id;
+            if (dbArtistId === undefined || dbTagId === undefined) {
+                return;
+            }
+            try {
+                expectedArtistTags++;
+                asyncLocalStorage.run({ i }, () => {
+                    dependencies_1.getArtistsService.addTag(dbArtistId, dbTagId)
+                        .then(() => {
+                        acknowledgedArtistTags++;
+                    });
+                });
+            }
+            catch (e) {
+                console.error("failed to import tag", r, e);
+            }
+        },
+        onendorclose: () => {
+            const interval = setInterval(() => {
+                console.log(`acknowledged artist tags: ${acknowledgedArtistTags}/${expectedArtistTags}`);
+                if (acknowledgedArtistTags === expectedArtistTags) {
+                    clearInterval(interval);
+                    console.log("artist tags imported.");
                     finish();
                 }
             }, 1000);

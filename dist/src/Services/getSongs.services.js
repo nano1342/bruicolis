@@ -72,6 +72,7 @@ class GetSongsService {
         }
         let songs = [];
         for (const id of artistIds) {
+            //FIXME imports the same song multiple times
             songs.push(await this.addSong(songToInsert, id));
         }
         return songs;
@@ -95,7 +96,7 @@ class GetSongsService {
             }
         }
         //adding the tag
-        return this.songRepository.insertTag(songId, tagId);
+        return this.songRepository.insertTagLink(songId, tagId);
     }
     async getTags(songId) {
         //vérifications préalables avant requête

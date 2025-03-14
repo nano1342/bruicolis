@@ -41,8 +41,33 @@ class PgAlbumRepository {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async selectAll() {
-        let albums = await this.prisma.album.findMany();
+    async selectAll(filters) {
+        let sqlOptions = {
+            where: {
+                AND: []
+            }
+        };
+        if (filters != null) {
+            if ('tagsOR' in filters && filters['tagsOR'].length > 0) {
+                const tags = filters['tagsOR'];
+                sqlOptions.where.AND.push({ TagLink: { some: { idTag: { in: tags } } } });
+            }
+            if ('tagsAND' in filters && filters['tagsAND'].length > 0) {
+                const tags = filters['tagsAND'];
+                let obj = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } });
+                }
+                sqlOptions.where.AND.push(obj);
+            }
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: {
+                        contains: filters['text_query'],
+                        mode: 'insensitive'
+                    } });
+            }
+        }
+        let albums = await this.prisma.album.findMany(sqlOptions);
         return albums.map((album) => {
             return {
                 id: album.id,
@@ -51,12 +76,33 @@ class PgAlbumRepository {
             };
         });
     }
-    async selectPage(skip, take) {
-        const options = {
-            skip: skip,
-            take: take
+    async selectPage(skip, take, filters) {
+        let sqlOptions = {
+            where: {
+                AND: []
+            }
         };
-        let albums = await this.prisma.album.findMany(options);
+        if (filters != null) {
+            if ('tagsOR' in filters && filters['tagsOR'].length > 0) {
+                const tags = filters['tagsOR'];
+                sqlOptions.where.AND.push({ TagLink: { some: { idTag: { in: tags } } } });
+            }
+            if ('tagsAND' in filters && filters['tagsAND'].length > 0) {
+                const tags = filters['tagsAND'];
+                let obj = { AND: [] };
+                for (let tag of tags) {
+                    obj.AND.push({ TagLink: { some: { idTag: tag } } });
+                }
+                sqlOptions.where.AND.push(obj);
+            }
+            if ('text_query' in filters) {
+                sqlOptions.where.AND.push({ name: {
+                        contains: filters['text_query'],
+                        mode: 'insensitive'
+                    } });
+            }
+        }
+        let albums = await this.prisma.album.findMany(sqlOptions);
         return albums.map((album) => {
             return {
                 id: album.id,
@@ -64,6 +110,40 @@ class PgAlbumRepository {
                 release_date: album.releaseDate
             };
         });
+    }
+    async selectTagsAll(albumId) {
+        let tags = await this.prisma.tag.findMany({
+            where: {
+                TagLink: {
+                    some: {
+                        idAlbum: albumId
+                    },
+                },
+            },
+        });
+        return tags.map((tag) => {
+            return {
+                id: tag.id,
+                label: tag.label,
+                musicbrainzId: tag.musicbrainzId,
+            };
+        });
+    }
+    async insertTagLink(albumId, tagId) {
+        try {
+            let newTagLink = await this.prisma.tagLink.create({
+                data: {
+                    idTag: tagId,
+                    idSong: undefined,
+                    idAlbum: albumId,
+                    idArtist: undefined,
+                }
+            });
+        }
+        catch (error) {
+            return ResponseBody_1.ResponseBody.getResponseBodyFail("Something went wrong. Tag not added.", Errors.getErrorBodyDefault(Errors.ErrorType.SERVER_ERROR));
+        }
+        return ResponseBody_1.ResponseBody.getResponseBodyOk("Tag successfully added to the album.");
     }
     async selectOneById(albumId) {
         let album = await this.prisma.album.findUnique({ where: {
