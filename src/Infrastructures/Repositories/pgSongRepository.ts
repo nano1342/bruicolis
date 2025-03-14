@@ -130,10 +130,17 @@ export class PgSongRepository implements SongRepository {
     }
 
     async insertSong(songToInsert: SongModel, artistd: number) {
+        let date :Date;
+        if (typeof songToInsert.release_date == 'string') {
+            date = new Date(songToInsert.release_date);
+        } else {
+            date = songToInsert.release_date;
+        }
+        
         let newSong: Song = await this.prisma.song.create({
             data: {
               name: songToInsert.name,
-              releaseDate: songToInsert.release_date.toISOString()
+              releaseDate: date.toISOString()
             }
         });
 
