@@ -151,6 +151,17 @@ export default class SongController {
         
         
         const respBody = await this.getSongsService.getTags(id);
+        
+        if (respBody.error != undefined) {
+            let errorObj: { [key: string]: any } = respBody.error;
+            
+            if (errorObj.error.type == Errors.ErrorType.NOT_FOUND) {
+                res.status(404).send(Errors.getErrorBody(Errors.ErrorType.NOT_FOUND, "The specified song_id is unknown."));
+            } else {
+                res.status(400).send(respBody.error);
+            }
+            return;
+        }
 
         res.send(respBody);
     }

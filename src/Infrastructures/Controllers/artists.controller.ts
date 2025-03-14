@@ -100,8 +100,19 @@ export default class ArtistController {
             return;
         }
         
-        const songList = await this.getArtistsService.getSongs(artist_id);
-        res.send(songList);
+        const respBody = await this.getArtistsService.getSongs(artist_id);
+
+        if ('error' in respBody && respBody.error != null) {
+            let errorObj: { [key: string]: any } = respBody.error;
+            
+            if (errorObj.error.type == Errors.ErrorType.NOT_FOUND) {
+                res.status(404).send(Errors.getErrorBody(Errors.ErrorType.NOT_FOUND, "The specified artist_id is unknown."));
+            } else {
+                res.status(400).send(respBody.error);
+            }
+            return;
+        }
+        res.send(respBody);
     }
 
 

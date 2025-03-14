@@ -26,7 +26,15 @@ export class GetArtistsService {
         }
     }
 
-    getSongs(artistId: number) {
+    async getSongs(artistId: number) {
+        //vérifications préalables avant requête
+
+        const artist = await this.artistRepository.selectOneById(artistId);
+        
+        if (artist == null) {
+            return ResponseBody.getResponseBodyFail("The provided ID doesn't correspond to any artist.", Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND));
+        }
+
         return this.artistRepository.selectSongsAll(artistId);
     }
 

@@ -81,6 +81,12 @@ export class GetSongsService {
     async getTags(songId: number) {
         //vérifications préalables avant requête
 
+        const song = await this.songRepository.selectOneById(songId);
+        
+        if (song == null) {
+            return ResponseBody.getResponseBodyFail("The provided ID doesn't correspond to any song.", Errors.getErrorBodyDefault(Errors.ErrorType.NOT_FOUND));
+        }
+
         return this.songRepository.selectTags(songId);
     }
     
