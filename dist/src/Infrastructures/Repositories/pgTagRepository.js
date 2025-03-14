@@ -12,6 +12,7 @@ class PgTagRepository {
             return {
                 id: tag.id,
                 label: tag.label,
+                musicbrainzId: tag.musicbrainzId
             };
         });
     }
@@ -24,7 +25,8 @@ class PgTagRepository {
         return tags.map((tag) => {
             return {
                 id: tag.id,
-                label: tag.label
+                label: tag.label,
+                musicbrainzId: tag.musicbrainzId,
             };
         });
     }
@@ -40,6 +42,7 @@ class PgTagRepository {
         return {
             id: tag.id,
             label: tag.label,
+            musicbrainzId: tag.musicbrainzId,
         };
     }
     async selectTagSongs(tagId) {
@@ -100,11 +103,13 @@ class PgTagRepository {
         let newTag = await this.prisma.tag.create({
             data: {
                 label: tagToInsert.label,
+                musicbrainzId: tagToInsert.musicbrainzId
             }
         });
         let newTagToReturn = {
             id: newTag.id,
             label: newTag.label,
+            musicbrainzId: newTag.musicbrainzId,
         };
         return newTagToReturn;
     }

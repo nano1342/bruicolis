@@ -70,7 +70,8 @@ class TagController {
         }
         const tagToInsert = {
             id: -1,
-            label: req.body['label']
+            label: req.body['label'],
+            musicbrainzId: null,
         };
         const insertedTag = await this.getTagsService.addTag(tagToInsert);
         res.send(insertedTag);

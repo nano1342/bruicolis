@@ -139,10 +139,17 @@ class PgSongRepository {
         };
     }
     async insertSong(songToInsert, artistd) {
+        let date;
+        if (typeof songToInsert.release_date == 'string') {
+            date = new Date(songToInsert.release_date);
+        }
+        else {
+            date = songToInsert.release_date;
+        }
         let newSong = await this.prisma.song.create({
             data: {
                 name: songToInsert.name,
-                releaseDate: songToInsert.release_date.toISOString()
+                releaseDate: date.toISOString()
             }
         });
         try {

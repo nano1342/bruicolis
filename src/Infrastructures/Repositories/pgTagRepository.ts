@@ -17,6 +17,7 @@ export class PgTagRepository implements TagRepository {
             return {
                 id: tag.id,
                 label: tag.label,
+                musicbrainzId: tag.musicbrainzId
             }
         })
     }
@@ -32,7 +33,8 @@ export class PgTagRepository implements TagRepository {
         return tags.map((tag) => {
             return {
                 id: tag.id,
-                label: tag.label
+                label: tag.label,
+                musicbrainzId: tag.musicbrainzId,
             }
         })
     }
@@ -50,6 +52,7 @@ export class PgTagRepository implements TagRepository {
         return {
             id: tag.id,
             label: tag.label,
+            musicbrainzId: tag.musicbrainzId,
         }
     }
 
@@ -117,12 +120,14 @@ export class PgTagRepository implements TagRepository {
         let newTag: Tag = await this.prisma.tag.create({
             data: {
               label: tagToInsert.label,
+              musicbrainzId: tagToInsert.musicbrainzId
             }
         });
 
         let newTagToReturn: TagModel = {
             id: newTag.id,
             label: newTag.label,
+            musicbrainzId: newTag.musicbrainzId,
         }
 
         return newTagToReturn;

@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { TagsService } from "../../Services/tags.services";
 import * as Errors from "../../Utils/Errors";
 import Joi from "joi";
+import { Tag } from "../../Domains/Models/Tag";
 
 export default class TagController {
 
@@ -41,9 +42,10 @@ export default class TagController {
             return;
         }
         
-        const tagToInsert = {
+        const tagToInsert: Tag = {
             id: -1,
-            label: req.body['label']
+            label: req.body['label'],
+            musicbrainzId: null,
         };
 
         const insertedTag = await this.getTagsService.addTag(tagToInsert);

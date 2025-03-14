@@ -3,6 +3,7 @@ import {
     getArtistsService,
     getSongsService,
     albumsService,
+    tagService
 } from "../src/dependencies";
 import { Artist } from "../src/Domains/Models/Artist";
 
@@ -21,6 +22,7 @@ import { performance, PerformanceObserver } from "perf_hooks";
 //     PerformanceObserver: any;
 // } = require("node:perf_hooks");
 import { AsyncLocalStorage } from "async_hooks";
+import { TagsService } from "../src/Services/tags.services";
 // const { AsyncLocalStorage } = require("node:async_hooks");
 /**
  * needs to be reset for each async operation
@@ -61,6 +63,7 @@ const trackCsv = path.resolve(root, "out_track.csv");
 const mediumCsv = path.resolve(root, "out_medium.csv");
 const releaseCsv = path.resolve(root, "out_release.csv");
 const releaseCountryCsv = path.resolve(root, "out_release_country.csv");
+const tagsCsv = path.resolve(root, "out_tag.csv");
 
 interface ReleaseDate {
     year: number;
@@ -78,6 +81,7 @@ const MAX_ARTISTS = 10_000;
 const MAX_SONGS = 5_000;
 const MAX_MAPPINGS = 200_000;
 const MAX_ALBUMS = 5_000;
+const MAX_TAGS = 5_000;
 const MEASURE_PERFORMANCE = true;
 
 function read(
@@ -691,7 +695,7 @@ function importAlbums() {
                 if (acknowledgedAlbums === expectedAlbums) {
                     clearInterval(interval);
                     console.log("albums imported.");
-                    finish();
+                    importTags();
                 }
             }, 1000);
         },
@@ -736,7 +740,72 @@ let artistIdsToDbIds = (artistIds: number[]): number[] => {
     return dbArtistIds;
 };
 
-async function finish() {
+let expectedTags = 0;
+let acknowledgedTags = 0;
+let tagPerfTimings = new Map<string, PerfFrame>();
+function importTags() {
+    console.log("=== importing tags...");
+    asyncLocalStorage = new AsyncLocalStorage();
+    let i = 0;
+
+    read(tagsCsv, {
+        ondata: (r, stream) => {
+            // log progress
+            i++;
+            if (i % 1000 === 0 && i <= MAX_TAGS) {
+                console.log(i);
+            }
+            if (i > MAX_TAGS) {
+                stream.destroy();
+                return;
+            }
+
+            let name = getTruncatedName(r[1], 50); // name is the 3rd field in the csv
+            const tagId = parseInt(r[0]);
+
+            try {
+                expectedTags++;
+                asyncLocalStorage.run({ i }, () => {
+                    if (MEASURE_PERFORMANCE) {
+                        tagPerfTimings.set(name, perfNow());
+                    }
+                    tagService.addTag
+                        (
+                            {
+                                id: 0, // ignored by service,
+                                label: name,
+                                musicbrainzId: tagId,
+                            },
+                        )
+                        .then(() => {
+                            acknowledgedTags++;
+                            const perf = tagPerfTimings.get(name);
+                            if (MEASURE_PERFORMANCE) {
+                                perfEnd(tagPerfTimings.get(name), "addTag");
+                                tagPerfTimings.delete(name);
+                            }
+                        });
+                });
+            } catch (e) {
+                console.error("failed to import tag", r, e);
+            }
+        },
+        onendorclose: () => {
+            const interval = setInterval(() => {
+                console.log(
+                    `acknowledged tags: ${acknowledgedTags}/${expectedTags}`
+                );
+                if (acknowledgedTags === expectedTags) {
+                    clearInterval(interval);
+                    console.log("tags imported.");
+                    finish();
+                }
+            }, 1000);
+        },
+    });
+}
+
+function finish() {
     disconnectPerfIfAny();
     db.close();
     console.log("=== done ===");
