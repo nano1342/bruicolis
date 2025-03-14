@@ -13,6 +13,8 @@ export interface ArtistRepository {
     selectAlbumsAll(artistId: number) :Promise<Album[]>
     
     selectOneById(artistId: number) :Promise<Artist | null>
+
+    findArtistByMusicBrainzId(artistId: number) :Promise<Artist | null>
     
     insertArtist(artistToInsert: Artist) :Promise<Artist | null>
 }

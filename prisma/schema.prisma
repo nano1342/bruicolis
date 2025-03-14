@@ -25,6 +25,7 @@ model Album {
 model Artist {
   id               Int               @id @default(autoincrement())
   name             String            @db.VarChar(255)
+  musicbrainzId    Int?
   songArtistLinks  SongArtistLink[]
   artistAlbumLinks ArtistAlbumLink[]
   TagLink          TagLink[]

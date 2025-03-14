@@ -4,6 +4,7 @@ import { GetArtistsService } from "../../Services/getArtists.services";
 import { PrismaClient } from "@prisma/client";
 import * as Errors from "../../Utils/Errors";
 import Joi from "joi";
+import { Artist } from "../../Domains/Models/Artist";
 
 export default class ArtistController {
 
@@ -43,9 +44,10 @@ export default class ArtistController {
         }
         
         
-        const artistToInsert = {
+        const artistToInsert: Artist = {
             id: -1,
             name: req.body['name'],
+            musicbrainzId: null,
         };
         
         console.log("pré envoi", req.body);

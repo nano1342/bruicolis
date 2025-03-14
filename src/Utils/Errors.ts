@@ -40,6 +40,8 @@ function getDefaultMessage(errorType: ErrorType) {
     return defaultMessages.get(errorType);
 }
 
+export class IncorrectParameterError extends Error {}
+
 export {
     getErrorBody,
     getDefaultMessage,

@@ -4,19 +4,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-// Import routes
-const artists_js_1 = __importDefault(require("./routes/artists.js"));
-const music_js_1 = __importDefault(require("./routes/music.js"));
+// "dev": "npm run build && npm run start",
+const artists_1 = __importDefault(require("./src/Infrastructures/routes/artists"));
+const songs_1 = __importDefault(require("./src/Infrastructures/routes/songs"));
+const albums_1 = __importDefault(require("./src/Infrastructures/routes/albums"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 8000;
-app.get('/', (req, res) => {
-    const o = express_1.default.response;
-    var jesuis = { musiiiiic: 'Chris Prolls' };
-    console.log("jesuis ", jesuis);
-    res.send(jesuis);
-});
-app.use("/artists", artists_js_1.default);
-app.use("/music", music_js_1.default);
+// For parsing application/json
+app.use(express_1.default.json());
+// For parsing application/x-www-form-urlencoded
+// app.use(express.urlencoded({ extended: true }));
+app.use("/artists", artists_1.default);
+app.use("/songs", songs_1.default);
+app.use("/albums", albums_1.default);
 app.listen(port, () => {
     console.log(`Server is Fire at http://localhost:${port}`);
 });

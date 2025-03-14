@@ -8,18 +8,19 @@ export class PgArtistRepository implements ArtistRepository {
         
     }
 
-    async selectAll() {
+    async selectAll(): Promise<Artist[]> {
         let artists = await this.prisma.artist.findMany();
         
         return artists.map((artist) => {
             return {
                 id: artist.id,
-                name: artist.name
+                name: artist.name,
+                musicbrainzId: artist.musicbrainzId,
             }
         })
     }
 
-    async selectPage(skip: number, take: number) {
+    async selectPage(skip: number, take: number): Promise<Artist[]> {
         const options = {
             skip: skip,
             take: take
@@ -30,7 +31,8 @@ export class PgArtistRepository implements ArtistRepository {
         return artists.map((artist) => {
             return {
                 id: artist.id,
-                name: artist.name
+                name: artist.name,
+                musicbrainzId: artist.musicbrainzId,
             }
         })
     }
@@ -76,7 +78,7 @@ export class PgArtistRepository implements ArtistRepository {
     }
     
 
-    async selectOneById(artistId: number) {
+    async selectOneById(artistId: number): Promise<Artist | null> {
         let artist = await this.prisma.artist.findUnique({where: {
             id: artistId,
           },
@@ -88,14 +90,33 @@ export class PgArtistRepository implements ArtistRepository {
 
         return {
             id: artist.id,
-            name: artist.name
-        }
+            name: artist.name,
+            musicbrainzId: artist.musicbrainzId,
+        };
+    }
+
+    async findArtistByMusicBrainzId(artistId: number): Promise<Artist | null> {
+        let artist = await this.prisma.artist.findFirst({where: {
+            musicbrainzId: artistId,
+          },
+        });
+        
+        if (artist == null) {
+            return null;
+        };
+
+        return {
+            id: artist.id,
+            name: artist.name,
+            musicbrainzId: artist.musicbrainzId,
+        };
     }
 
     async insertArtist(artistToInsert: Artist) {
         let newArtist: Artist = await this.prisma.artist.create({
             data: {
-              name: artistToInsert.name
+              name: artistToInsert.name,
+              musicbrainzId: artistToInsert.musicbrainzId ?? undefined,
             }
           });
 
