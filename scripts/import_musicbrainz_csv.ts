@@ -64,12 +64,14 @@ interface ReleaseDate {
     day: number;
 }
 
-const MAX_ARTISTS = 10_000;
+const MAX_ARTISTS = 50_000;
 const MAX_SONGS = 5_000;
-const MAX_MAPPINGS = 200_000;
+const MAX_MAPPINGS = 500_000;
 const MAX_ALBUMS = 5_000;
 const MAX_TAGS = 5_000;
-const MAX_TAG_ARTIST_BINDINGS = 100_000;
+const MAX_TAG_ARTIST_BINDINGS = 20_000;
+const MAX_TAG_RELEASE_BINDINGS = 20_000;
+const MAX_TAG_RECORDING_BINDINGS = 20_000;
 const MEASURE_PERFORMANCE = false;
 
 /**
@@ -94,6 +96,8 @@ const TOTAL = {
     RELEASE_DATE_MAPPINGS: 12_836_534,
 
     TAG_ARTIST_BINDINGS: 609_703,
+    TAG_RELEASE_BINDINGS: 3_014_212,
+    TAG_RECORDING_BINDINGS: 6_424_541,
 }
 
 function percent(ratio: number) {
@@ -798,7 +802,7 @@ function bindArtistsAndTags() {
                         });
                 });
             } catch (e) {
-                console.error("failed to import tag", r, e);
+                console.error("failed to import artist tag", r, e);
             }
         },
         onendorclose: () => {
@@ -809,6 +813,116 @@ function bindArtistsAndTags() {
                 if (acknowledgedArtistTags === expectedArtistTags) {
                     clearInterval(interval);
                     console.log("artist tags imported.");
+                    bindAlbumsAndTags();
+                }
+            }, 1000);
+        },
+    });
+
+}
+
+let expectedAlbumTags = 0;
+let acknowledgedAlbumTags = 0;
+function bindAlbumsAndTags() {
+    console.log("=== binding albums and tags...");
+    asyncLocalStorage = new AsyncLocalStorage();
+    let i = 0;
+
+    read(artistTagCsv, {
+        ondata: (r, stream) => {
+            // log progress
+            i++;
+            if (i % 5000 === 0 && i <= MAX_TAG_RELEASE_BINDINGS) {
+                console.log(i);
+            }
+            if (i > MAX_TAG_RELEASE_BINDINGS) {
+                stream.destroy();
+                return;
+            }
+
+            const releaseId = parseInt(r[0]);
+            const tagId = parseInt(r[1]);
+            const dbReleaseId = findAlbumIdByMusicBrainzId(releaseId)?.id;
+            const dbTagId = findTagIdByMusicBrainzId(tagId)?.id;
+            if (dbReleaseId === undefined || dbTagId === undefined ) {
+                return;
+            }
+
+            try {
+                expectedAlbumTags++;
+                asyncLocalStorage.run({ i }, () => {
+                    albumsService.addTag(dbReleaseId, dbTagId)
+                        .then(() => {
+                            acknowledgedAlbumTags++;
+                        });
+                });
+            } catch (e) {
+                console.error("failed to import album tag", r, e);
+            }
+        },
+        onendorclose: () => {
+            const interval = setInterval(() => {
+                console.log(
+                    `acknowledged album tags: ${acknowledgedAlbumTags}/${expectedAlbumTags}`
+                );
+                if (acknowledgedAlbumTags === expectedAlbumTags) {
+                    clearInterval(interval);
+                    console.log("album tags imported.");
+                    bindSongsAndTags();
+                }
+            }, 1000);
+        },
+    });
+
+}
+
+let expectedSongTags = 0;
+let acknowledgedSongTags = 0;
+function bindSongsAndTags() {
+    console.log("=== binding songs and tags...");
+    asyncLocalStorage = new AsyncLocalStorage();
+    let i = 0;
+
+    read(recordingTagCsv, {
+        ondata: (r, stream) => {
+            // log progress
+            i++;
+            if (i % 5000 === 0 && i <= MAX_TAG_RECORDING_BINDINGS) {
+                console.log(i);
+            }
+            if (i > MAX_TAG_RECORDING_BINDINGS) {
+                stream.destroy();
+                return;
+            }
+
+            const recordingId = parseInt(r[0]);
+            const tagId = parseInt(r[1]);
+            const dbSongId = findSongIdByMusicBrainzId(recordingId)?.id;
+            const dbTagId = findTagIdByMusicBrainzId(tagId)?.id;
+            if (dbSongId === undefined || dbTagId === undefined ) {
+                return;
+            }
+
+            try {
+                expectedSongTags++;
+                asyncLocalStorage.run({ i }, () => {
+                    getSongsService.addTag(dbSongId, dbTagId)
+                        .then(() => {
+                            acknowledgedSongTags++;
+                        });
+                });
+            } catch (e) {
+                console.error("failed to import song tag", r, e);
+            }
+        },
+        onendorclose: () => {
+            const interval = setInterval(() => {
+                console.log(
+                    `acknowledged song tags: ${acknowledgedSongTags}/${expectedSongTags}`
+                );
+                if (acknowledgedSongTags === expectedSongTags) {
+                    clearInterval(interval);
+                    console.log("song tags imported.");
                     finish();
                 }
             }, 1000);
