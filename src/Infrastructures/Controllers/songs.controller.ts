@@ -19,6 +19,8 @@ export default class SongController {
     async getSongs(req: Request, res: Response) {
         let result;
         console.log(req.body);
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
 
         if (req.body.page != null && req.body.limit != null) {
             result = await this.getSongsService.getPage(req.body.page, req.body.limit, req.body.filters);
