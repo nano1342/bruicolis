@@ -64,15 +64,15 @@ interface ReleaseDate {
     day: number;
 }
 
-const MAX_ARTISTS = 50_000;
-const MAX_SONGS = 10_000;
-const MAX_MAPPINGS = 500_000;
-const MAX_ALBUMS = 10_000;
-const MAX_TAGS = 5_000;
-const MAX_TAG_ARTIST_BINDINGS = 10_000;
-const MAX_TAG_RELEASE_BINDINGS = 10_000;
-const MAX_TAG_RECORDING_BINDINGS = 10_000;
-const MEASURE_PERFORMANCE = true;
+const MAX_ARTISTS = 3_000_000;
+const MAX_SONGS = 100_000;
+const MAX_MAPPINGS = 1_000_000;
+const MAX_ALBUMS = 100_000;
+const MAX_TAGS = 300_000;
+const MAX_TAG_ARTIST_BINDINGS = 500_000;
+const MAX_TAG_RELEASE_BINDINGS = 500_000;
+const MAX_TAG_RECORDING_BINDINGS = 500_000;
+const MEASURE_PERFORMANCE = false;
 
 /**
  * Based on https://musicbrainz.org/statistics on 2025-03-14
