@@ -148,7 +148,8 @@ export class PgArtistRepository implements ArtistRepository {
         return tags.map((tag) => {
             return {
                 id: tag.id,
-                label: tag.label
+                label: tag.label,
+                musicbrainzId: tag.musicbrainzId,
             }
         })
     }

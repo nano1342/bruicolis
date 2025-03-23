@@ -11,6 +11,8 @@ export interface TagRepository {
     selectPage(skip: number, take: number) :Promise<Tag[]>
     
     selectOneById(tagId: number) :Promise<Tag | null>
+
+    selectOneByMusicbrainzId(tagId: number) :Promise<Tag | null>
     
     selectTagSongs(tagId: number) :Promise<Song[]>
     

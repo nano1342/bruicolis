@@ -19,6 +19,8 @@ export default class SongController {
     async getSongs(req: Request, res: Response) {
         let result;
         console.log(req.body);
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
 
         if (req.body.page != null && req.body.limit != null) {
             result = await this.getSongsService.getPage(req.body.page, req.body.limit, req.body.filters);
@@ -35,6 +37,8 @@ export default class SongController {
     }
 
     async addSong(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
 
         const { error, value } = this.reqBodyFormatSongPost.validate(req.body);
         if (error) {
@@ -63,6 +67,8 @@ export default class SongController {
     }
 
     async getSong(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -94,6 +100,8 @@ export default class SongController {
      * @returns 
      */
     async addTag(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -135,6 +143,8 @@ export default class SongController {
      * @returns 
      */
     async getTags(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
