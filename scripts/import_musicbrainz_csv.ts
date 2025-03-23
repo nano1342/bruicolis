@@ -65,13 +65,13 @@ interface ReleaseDate {
 }
 
 const MAX_ARTISTS = 50_000;
-const MAX_SONGS = 5_000;
-const MAX_MAPPINGS = 250_000;
-const MAX_ALBUMS = 5_000;
+const MAX_SONGS = 10_000;
+const MAX_MAPPINGS = 500_000;
+const MAX_ALBUMS = 10_000;
 const MAX_TAGS = 5_000;
-const MAX_TAG_ARTIST_BINDINGS = 20_000;
-const MAX_TAG_RELEASE_BINDINGS = 20_000;
-const MAX_TAG_RECORDING_BINDINGS = 20_000;
+const MAX_TAG_ARTIST_BINDINGS = 10_000;
+const MAX_TAG_RELEASE_BINDINGS = 10_000;
+const MAX_TAG_RECORDING_BINDINGS = 10_000;
 const MEASURE_PERFORMANCE = true;
 
 /**
@@ -930,13 +930,78 @@ function bindSongsAndTags() {
                 if (acknowledgedSongTags === expectedSongTags) {
                     clearInterval(interval);
                     console.log("song tags imported.");
-                    finish();
+                    bindSongsAndAlbums();
                 }
             }, 1000);
         },
     });
 
 }
+
+let expectedSongAlbumBinds = 0;
+let acknowledgedSongAlbumBinds = 0;
+function bindSongsAndAlbums() {
+    console.log("=== binding songs and albums...");
+    asyncLocalStorage = new AsyncLocalStorage();
+    let i = 0;
+
+    const stmt = db.prepare("SELECT * FROM mappings INNER JOIN song_musicbrainz_to_db_id ON mappings.recording = song_musicbrainz_to_db_id.musicbrainz_id INNER JOIN album_musicbrainz_to_db_id ON mappings.release = album_musicbrainz_to_db_id.musicbrainz_id");
+    for (const row of stmt.iterate()) {
+        console.log(row);
+        //FIXME why empty :(.
+    }
+
+    console.log("not working.");
+
+    // read(recordingTagCsv, {
+    //     ondata: (r, stream) => {
+    //         // log progress
+    //         i++;
+    //         if (i % 5000 === 0 && i <= MAX_TAG_RECORDING_BINDINGS) {
+    //             console.log(i);
+    //         }
+    //         if (i > MAX_TAG_RECORDING_BINDINGS) {
+    //             stream.destroy();
+    //             return;
+    //         }
+
+    //         const recordingId = parseInt(r[0]);
+    //         const tagId = parseInt(r[1]);
+    //         const dbSongId = findSongIdByMusicBrainzId(recordingId)?.id;
+    //         const dbTagId = findTagIdByMusicBrainzId(tagId)?.id;
+    //         if (dbSongId === undefined || dbTagId === undefined ) {
+    //             return;
+    //         }
+
+    //         try {
+    //             expectedSongTags++;
+    //             asyncLocalStorage.run({ i }, () => {
+    //                 getSongsService.addTag(dbSongId, dbTagId)
+    //                     .then(() => {
+    //                         acknowledgedSongTags++;
+    //                     });
+    //             });
+    //         } catch (e) {
+    //             console.error("failed to import song tag", r, e);
+    //         }
+    //     },
+    //     onendorclose: () => {
+    //         const interval = setInterval(() => {
+    //             console.log(
+    //                 `acknowledged song tags: ${acknowledgedSongTags}/${expectedSongTags}`
+    //             );
+    //             if (acknowledgedSongTags === expectedSongTags) {
+    //                 clearInterval(interval);
+    //                 console.log("song tags imported.");
+    //                 finish();
+    //             }
+    //         }, 1000);
+    //     },
+    // });
+    finish();
+}
+
+
 
 function finish() {
     disconnectPerfIfAny();
