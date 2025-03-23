@@ -17,6 +17,8 @@ export default class ArtistController {
     }
 
     async getArtists(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         let result;
         
         if (req.body.page != null && req.body.limit != null) {
@@ -34,6 +36,8 @@ export default class ArtistController {
     }
 
     async addArtist(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
 
         const { error, value } = this.reqBodyFormatArtistPost.validate(req.body);
         if (error) {
@@ -56,6 +60,8 @@ export default class ArtistController {
     }
 
     async getArtist(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -86,6 +92,8 @@ export default class ArtistController {
      * @param res 
      */
     async getArtistSongs(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -111,6 +119,8 @@ export default class ArtistController {
      * @param res 
      */
     async getArtistAlbums(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -136,6 +146,8 @@ export default class ArtistController {
      * @param res 
      */
     async getArtistTags(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -161,6 +173,8 @@ export default class ArtistController {
      * @param res 
      */
     async addArtistTag(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);

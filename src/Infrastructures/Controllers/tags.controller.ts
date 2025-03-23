@@ -16,6 +16,8 @@ export default class TagController {
     }
 
     async getTags(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         let result;
         console.log(req.body);
         
@@ -34,6 +36,8 @@ export default class TagController {
     }
 
     async addTag(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
 
         const { error, value } = this.reqBodyFormatTagPost.validate(req.body);
         if (error) {
@@ -54,6 +58,8 @@ export default class TagController {
     }
 
     async getTag(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         if (req.params['id'] == null) {
             const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
             res.status(422).send(errorBody);
@@ -79,6 +85,8 @@ export default class TagController {
     }
 
     async getTagSongs(req: Request, res: Response) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
         const id = checkTagId(req, res);
         if (id == undefined) return;
         const tag = await this.getTagsService.getOneById(id);
@@ -92,7 +100,9 @@ export default class TagController {
     }
 }
 
-function checkTagId(req: Request, res: Response){
+function checkTagId(req: Request, res: Response) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     if (req.params['id'] == null) {
         const errorBody = Errors.getErrorBodyDefault(Errors.ErrorType.MISSING_PARAMETER);
         res.status(422).send(errorBody);
